@@ -19,7 +19,6 @@ document.getElementById("signupForm").addEventListener("submit", async function 
       body: JSON.stringify({
         username: name,
         email: email,
-        company: company,
         password: password
       })
     });
@@ -33,9 +32,7 @@ document.getElementById("signupForm").addEventListener("submit", async function 
       // Redirect if verified, otherwise keep them on signup for review
       if (data.status === "verified") {
         window.location.href = "login.html";
-      } else {
-        alert("Your account is pending admin approval before you can access scanning features.");
-      }
+      } 
     } else {
       alert(data.message || "Signup failed. Please try again.");
       console.error("Signup failed:", data);
