@@ -10,6 +10,7 @@ from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 from models.model1 import run_subdomain_discovery
 from models.model3 import run_technology_fingerprinting_for_subdomains
 from models.model4 import HTTPAnomalyModel
+from models.model5 import run_model_5
 from utils.http_collector import collect_http_features
 
 from config.database import (
@@ -180,10 +181,44 @@ def scan_domain():
                 print(f"Model 3 error: {e}")
 
         # ====================================================
-        # ✅ FINAL REPORT (MODEL 1 FIX APPLIED HERE)
+        # MODEL 5: EXPLOITATION STRATEGY
+        # ====================================================
+        try:
+            port_scan_results = []
+            for sub in result.get("raw_docs", []):
+                for port in sub.get("open_ports", []):
+                    port_scan_results.append({
+                        "subdomain": sub["subdomain"],
+                        "port": port["port"],
+                        "service": port["service"]
+                    })
+
+            technology_results_for_model5 = []
+
+            for tech_result in tech_results:
+                for tech in tech_result.get("technologies", []):
+                    technology_results_for_model5.append(tech)
+
+            http_anomaly_result_for_model5 = http_anomaly_results[0]["model4_result"] if http_anomaly_results else {}
+            print("========== MODEL 5 INPUT DEBUG ==========")
+            print("Ports:", port_scan_results)
+            print("Technologies:", technology_results_for_model5)
+            print("HTTP Anomaly:", http_anomaly_result_for_model5)
+            print("Flattened technologies for Model 5:", technology_results_for_model5)
+            print("========================================")
+            model5_output = run_model_5(
+                port_scan_results=port_scan_results,
+                technology_results=technology_results_for_model5,
+                http_anomaly_result=http_anomaly_result_for_model5
+            )
+        except Exception as e:
+            print(f"[Model5] Error generating strategies: {e}")
+            model5_output = {"strategies": []}
+
+        # ====================================================
+        # ✅ FINAL REPORT
         # ====================================================
         report = {
-            # 🔥 MODEL 1 FIELDS (ADDED – FIX)
             "domain": domain,
             "total_candidates": result.get("total_candidates", 0),
             "resolved": result.get("resolved", 0),
@@ -191,18 +226,11 @@ def scan_domain():
             "examples": result.get("examples", []),
             "clusters": result.get("clusters", []),
             "raw_docs": result.get("raw_docs", []),
-
-            # Timing
             "elapsed_seconds": time.time() - start,
-
-            # Model 2 (already embedded in raw_docs / ports)
             "ports_summary": result.get("ports_summary", {}),
-
-            # Model 3
             "technology_fingerprints": tech_results,
-
-            # Model 4
-            "http_anomalies": http_anomaly_results
+            "http_anomalies": http_anomaly_results,
+            "model5": model5_output
         }
 
         reports_collection.update_one(

@@ -196,3 +196,29 @@ body {
     transform: translateY(-3px);
     box-shadow: 0 0 20px rgba(255,255,255,0.7);
 }
+
+
+.strategy-card {
+  background: rgba(30, 41, 59, 0.7);
+  border-left: 4px solid #38bdf8;
+  padding: 12px;
+  margin-bottom: 12px;
+  border-radius: 6px;
+}
+
+.strategy-card h4 {
+  margin-bottom: 6px;
+}
+
+.badge {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 4px 8px;
+  background: #334155;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.confidence.high { color: #22c55e; }
+.confidence.medium { color: #eab308; }
+.confidence.low { color: #ef4444; }

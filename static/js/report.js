@@ -157,6 +157,53 @@ document.addEventListener("DOMContentLoaded", async () => {
       `;
     }
 
+  
+      // ====================================================
+      // MODEL 5: EXPLOITATION STRATEGIES (NEW)
+      // ====================================================
+      let model5HTML = "";
+
+      if (r.model5 && r.model5.strategies) {
+        if (r.model5.strategies.length > 0) {
+          model5HTML = `
+            <h3>Exploitation Strategies (Model 5)</h3>
+            <div class="model5-container">
+              ${r.model5.strategies.map(s => `
+                <div class="strategy-card">
+                  <h4>${s.technology} ${s.version ? `v${s.version}` : ""}</h4>
+
+                  <p><strong>Exploit Source:</strong> ${s.exploit_source}</p>
+                  <p><strong>MITRE Technique:</strong> ${s.mitre_technique}</p>
+
+                  <p><strong>Attack Chain:</strong><br>
+                    ${s.attack_chain.join(" → ")}
+                  </p>
+
+                  <p>
+                    <span class="badge">Ports: ${s.related_ports.join(", ")}</span>
+                    <span class="badge">HTTP: ${s.http_signal}</span>
+                    <span class="badge confidence ${s.confidence}">
+                      Confidence: ${s.confidence.toUpperCase()}
+                    </span>
+                  </p>
+                </div>
+              `).join("")}
+            </div>
+          `;
+        } else {
+          // Show this if strategies array is empty
+          model5HTML = `
+            <h3>Exploitation Strategies (Model 5)</h3>
+            <p><em>No exploitation strategies found for this domain.</em></p>
+          `;
+        }
+      }
+
+
+
+
+
+
     // ====================================================
     // FINAL RENDER (ALL MODELS INCLUDED)
     // ====================================================
@@ -179,6 +226,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       ${technologiesHTML ? `<h3>Detected Technologies (Model 3)</h3>${technologiesHTML}` : ""}
 
       ${model4HTML}
+
+      ${model5HTML}
+
     `;
 
   } catch (err) {
