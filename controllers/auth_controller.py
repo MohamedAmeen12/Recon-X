@@ -32,7 +32,8 @@ def signup():
         "created_at": datetime.datetime.utcnow()
     })
 
-    return jsonify({"message": "User registered successfully and is now pending admin approval."}), 201
+    return jsonify({"message": "User registered successfully and is now pending admin approval.",
+                     "status": "pending"}), 201
 
 
 @auth_bp.route("/login", methods=["POST"])
