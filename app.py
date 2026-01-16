@@ -61,7 +61,7 @@ for attempt in range(max_retries):
         print("✅ MongoDB connection successful!")
         break
     except Exception as e:
-        print(f"❌ MongoDB connection attempt {attempt + 1} failed: {e}")
+        print(f"❌ MongoDB connection attempt {attempt } failed: {e}")
         if attempt < max_retries - 1:
             print(f"Retrying in {retry_delay} seconds...")
             time.sleep(retry_delay)
