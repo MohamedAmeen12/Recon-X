@@ -16,7 +16,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Add backend/, backend/model/, backend/tools/ to import path
 sys.path.insert(0, BASE_DIR)
-sys.path.insert(0, os.path.join(BASE_DIR, "model"))
+sys.path.insert(0, os.path.join(BASE_DIR, "mode"))
 sys.path.insert(0, os.path.join(BASE_DIR, "tools"))
 
 # Import Model 1: Subdomain Discovery
