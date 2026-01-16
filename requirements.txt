@@ -1,0 +1,12 @@
+flask
+flask-cors
+pymongo
+scikit-learn
+numpy
+requests
+sublist3r
+python-nmap
+whatweb
+pandas
+urllib3
+

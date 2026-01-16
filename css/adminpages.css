@@ -1,0 +1,295 @@
+/* === GLOBAL BACKGROUND === */
+.bg-image {
+  position: fixed;
+  inset: 0;
+  background-image: url('../assets/images/coreui_1200_600.jpg');
+  background-size: cover;
+  background-position: center;
+  filter: brightness(0.25);
+  z-index: -2;
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: -1;
+}
+
+/* === GLOBAL FONT === */
+body {
+  margin: 0;
+  padding: 0;
+  font-family: "Inter", sans-serif;
+  color: white;
+  background: transparent;
+}
+
+/* === SIDEBAR === */
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 230px;
+  height: 100vh;
+  background: rgba(10, 10, 10, 0.7);
+  backdrop-filter: blur(4px);
+  border-right: 1px solid rgba(255,255,255,0.08);
+  padding-top: 40px;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-logo {
+  text-align: left;
+  padding-left: 30px;
+  margin-bottom: 40px;
+}
+
+.sidebar-logo h2 {
+  font-size: 1.7rem;
+  font-weight: 700;
+  color: white;
+}
+
+/* Sidebar links */
+.sidebar-item {
+  padding: 14px 30px;
+  font-size: 1rem;
+  text-decoration: none;
+  color: #d6d6d6;
+  display: block;
+  transition: 0.2s;
+}
+
+.sidebar-item:hover {
+  background: rgba(255,255,255,0.05);
+  color: white;
+}
+
+.sidebar-item.active {
+  background: rgba(255,255,255,0.08);
+  color: white;
+}
+
+.logout {
+  margin-top: auto;
+  padding-bottom: 30px;
+  color: #ff6f6f !important;
+}
+
+/* === MAIN CONTENT GLOBAL === */
+.content,
+.content-table {
+  margin-left: 230px;
+  min-height: 100vh;
+  padding: 40px 80px;
+  box-sizing: border-box;
+}
+
+/* === DASHBOARD HOME === */
+.content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.welcome-title {
+  font-size: 3.2rem;
+  font-weight: 700;
+  text-align: center;
+  color: white;
+}
+
+/* === PAGE TITLES === */
+.page-title {
+  font-size: 2.4rem;
+  font-weight: 700;
+  margin-bottom: 30px;
+}
+
+/* === TABLE CONTAINER === */
+.table-container {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  backdrop-filter: blur(6px);
+  padding: 25px;
+  border-radius: 10px;
+  max-width: 1200px;
+  margin: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  color: white;
+}
+
+th, td {
+  padding: 12px 20px;
+  border-bottom: 1px solid rgba(255,255,255,0.12);
+  font-size: 0.95rem;
+}
+
+th {
+  text-align: left;
+  font-weight: 600;
+  color: #e7e7e7;
+}
+
+tr:hover {
+  background: rgba(255,255,255,0.05);
+  transition: 0.2s;
+}
+
+/* === APPROVE / DECLINE BUTTONS === */
+.action-btn {
+  padding: 6px 14px;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  border: none;
+  cursor: pointer;
+  margin-right: 6px;
+}
+
+.approve-btn {
+  background: #4ade80;
+  color: black;
+}
+
+.decline-btn {
+  background: #ef4444;
+  color: white;
+}
+
+/* === ADD USER FORM (Glass Card) === */
+.add-user {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(8px);
+  padding: 35px;
+  border-radius: 14px;
+  width: 450px;                        /* FIX: perfect card width */
+  margin: 40px auto;                   /* center the card */
+  box-shadow: 0 4px 25px rgba(0,0,0,0.4);
+  text-align: center;
+}
+
+.add-user h2 {
+  font-size: 1.7rem;
+  font-weight: 700;
+  margin-bottom: 25px;
+  text-align: center;
+}
+
+/* Center the form elements */
+.add-user form {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+/* FIXED input width */
+.add-user input {
+  width: 100%;                          /* fits card */
+  padding: 12px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.10);
+  border: 1px solid rgba(255,255,255,0.12);
+  outline: none;
+  color: white;
+  font-size: 1rem;
+  transition: 0.25s;
+}
+
+.add-user input::placeholder {
+  color: #cfcfcf;
+}
+
+.add-user input:focus {
+  background: rgba(255,255,255,0.18);
+  border-color: rgba(255,255,255,0.3);
+  box-shadow: 0 0 12px rgba(255,255,255,0.20);
+}
+
+/* FIXED button width */
+.add-user button {
+  width: 100%;                         /* matches input width */
+  padding: 12px;
+  border-radius: 8px;
+  border: none;
+  background: #ffffff;
+  color: black;
+  font-size: 1.1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: 0.25s;
+}
+
+.add-user button:hover {
+  background: #e5e5e5;
+  transform: translateY(-2px);
+}
+
+/* === ACTION BUTTONS (Approve / Decline) === */
+.action-btn {
+  padding: 8px 18px;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.25s ease-in-out;
+  margin-right: 6px;
+}
+
+/* Approve button (green) */
+.approve-btn {
+  background: #22c55e; /* green-500 */
+  color: white;
+}
+
+.approve-btn:hover {
+  background: #16a34a; /* green-600 */
+  transform: translateY(-2px);
+}
+
+/* Decline button (red) */
+.decline-btn {
+  background: #ef4444; /* red-500 */
+  color: white;
+}
+
+.decline-btn:hover {
+  background: #424242; /* red-600 */
+  transform: translateY(-2px);
+}
+/* DELETE button style */
+.delete-btn {
+  background: #1b1b1b;  /* red-700 */
+  color: white;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+}
+
+.delete-btn:hover {
+  background: #2c2c2c;  /* red-600 */
+  transform: translateY(-2px);
+  box-shadow: 0 3px 10px rgba(0,0,0,0.4);
+}
+
+.delete-btn:active {
+  transform: translateY(0px);
+}
+.logout {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+.logout {
+  color: #ff6f6f !important;  /* red text for logout */
+}
+
+.logout:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: white !important;
+}

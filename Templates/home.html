@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ReconX | Dashboard</title>
+
+  <link rel="stylesheet" href="../css/home.css" />
+  <link rel="stylesheet" href="../css/darkmode.css" />
+</head>
+
+<body>
+
+  <!-- Background -->
+  <div class="bg-image"></div>
+  <div class="bg-overlay"></div>
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-logo"></div> <!-- removed logo -->
+
+    <a href="home.html" class="sidebar-item active">Dashboard</a>
+    <a href="scan.html" class="sidebar-item">Scan</a>
+    <a href="#analytics" class="sidebar-item">Analytics</a>
+    <a href="#contacts" class="sidebar-item">Contact</a>
+    <a href="login.html" class="sidebar-item logout">Logout</a>
+  </aside>
+  <button id="darkModeToggle">🌙</button>
+
+  <!-- MAIN CONTENT -->
+  <main class="content">
+
+    <!-- WELCOME SECTION -->
+    <section class="welcome">
+      <h1 class="title">Welcome to ReconX</h1>
+
+      <p class="subtitle">
+        Empowering defenders with intelligent reconnaissance.<br>
+        Detect, analyze, and stay ahead of cyber threats using AI.
+      </p>
+
+      <a href="scan.html" class="scan-btn">Start Scan</a>
+    </section>
+
+    <!-- ANALYTICS SECTION -->
+    <section id="analytics" class="analytics">
+      <h2>ReconX Analytics</h2>
+
+      <div class="stats-grid">
+
+        <!-- Users Visited -->
+        <div class="stat-card">
+          <h3>Users Visited</h3>
+          <p id="visitors" class="number">0</p>
+        </div>
+
+        <!-- Rating -->
+        <div class="stat-card">
+          <h3> User Rating</h3>
+          <p id="rating" class="number">0</p>
+        </div>
+
+        <!-- Scans Completed -->
+        <div class="stat-card">
+          <h3>Scans Completed</h3>
+          <p id="scans" class="number">0</p>
+        </div>
+
+        <!-- System Status -->
+        <div class="stat-card">
+          <h3> System Status</h3>
+          <p class="number status">Operational</p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- FOOTER -->
+    <footer id="contact" class="footer">
+      <h3>Contact Us</h3>
+      <p>Email: support@reconx.ai • Phone: +20 111 234 5678</p>
+
+      <div class="socials">
+        <a href="#">Facebook</a>
+        <a href="#">LinkedIn</a>
+        <a href="#">Twitter</a>
+      </div>
+
+      <p class="copyright">© 2025 ReconX. All Rights Reserved.</p>
+    </footer>
+
+  </main>
+
+  <!-- COUNTER ANIMATION SCRIPT -->
+  <script src="../js/counter.js"></script>
+  <script src="../js/darkmode.js"></script>
+</body>
+</html>

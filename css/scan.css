@@ -1,0 +1,177 @@
+/* -----------------------------------
+   GLOBAL PAGE STYLE
+----------------------------------- */
+body {
+  margin: 0;
+  font-family: 'Poppins', sans-serif;
+  color: white;
+
+  background-image: url('../assets/images/paper-style-white-monochrome-background_23-2149023490.avif');
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+
+  overflow-x: hidden;
+  position: relative;
+}
+
+/* Dark overlay */
+.bg-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+  z-index: 1;
+}
+
+/* -----------------------------------
+   SIDEBAR
+----------------------------------- */
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 240px;
+  height: 100vh;
+
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
+
+  padding: 40px 25px;
+  z-index: 3;
+
+  display: flex;
+  flex-direction: column;
+  gap: 25px;
+}
+
+.sidebar h2 {
+  color: white;
+  margin-bottom: 30px;
+  font-size: 1.8rem;
+}
+
+.sidebar a {
+  color: #e5e5e5;
+  text-decoration: none;
+  font-size: 1rem;
+  padding: 12px 15px;
+  border-radius: 6px;
+  transition: 0.2s ease;
+}
+
+.sidebar a:hover,
+.sidebar a.active {
+  background: rgba(255, 255, 255, 0.15);
+  color: white;
+}
+
+.sidebar a.logout {
+  margin-top: auto;
+  color: #ff4d4d;
+}
+
+/* -----------------------------------
+   MAIN CONTENT (PERFECT CENTERING)
+----------------------------------- */
+.scan-container {
+  position: relative;
+  z-index: 2;
+
+  margin-left: 240px;               /* space for sidebar */
+  height: calc(100vh - 80px);       /* pushes footer down */
+
+  display: flex;
+  flex-direction: column;
+  justify-content: center;          /* vertical center */
+  align-items: center;              /* horizontal center */
+  text-align: center;
+}
+
+.scan-container h1 {
+  font-size: 2.7rem;
+  font-weight: 700;
+  color: white;
+  margin-bottom: 10px;
+
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.35);
+}
+
+.scan-container .subtext {
+  font-size: 1rem;
+  color: #e0e0e0;
+  margin-bottom: 35px;
+  line-height: 1.6;
+  max-width: 480px;
+}
+
+/* -----------------------------------
+   SCAN FORM (CLEAN + CENTERED)
+----------------------------------- */
+.scan-form {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+}
+
+.scan-form input {
+  width: 420px;
+  padding: 15px;
+  font-size: 1rem;
+
+  border-radius: 8px;
+  border: 1.5px solid rgba(255, 255, 255, 0.45);
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+
+  transition: 0.25s ease;
+}
+
+.scan-form input::placeholder {
+  color: #dcdcdc;
+}
+
+.scan-form input:focus {
+  border-color: white;
+  box-shadow: 0 0 12px rgba(255,255,255,0.4);
+  outline: none;
+}
+
+.scan-form button {
+  width: 420px;
+  padding: 14px;
+  font-size: 1.1rem;
+  font-weight: 700;
+
+  border: none;
+  border-radius: 8px;
+  background: white;
+  color: black;
+
+  cursor: pointer;
+  transition: 0.25s ease;
+}
+
+.scan-form button:hover {
+  background: #eaeaea;
+  box-shadow: 0 0 20px rgba(255,255,255,0.7);
+}
+
+/* -----------------------------------
+   FOOTER
+----------------------------------- */
+.footer {
+  margin-left: 240px;
+  padding: 25px 0;
+
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(4px);
+  border-top: 1px solid rgba(255, 255, 255, 0.25);
+
+  text-align: center;
+  font-size: 0.9rem;
+  color: #dcdcdc;
+
+  z-index: 2;
+}
