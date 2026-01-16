@@ -1,7 +1,7 @@
 """
 Quick test script to check if the server endpoint works
 """
-import request
+import requests
 import json
 
 def test_scan_endpoint():
