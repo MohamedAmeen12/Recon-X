@@ -4,7 +4,7 @@
 body {
     margin: 0;
     font-family: 'Poppins', sans-serif;
-    color: white;
+    color: #e5e7eb;
 
     background-image: url('../assets/images/paper-style-white-monochrome-background_23-2149023490.avif');
     background-size: cover;
@@ -34,10 +34,8 @@ body {
     left: 0;
     width: 230px;
     height: 100vh;
-
-    background: rgba(0, 0, 0, 0.75);
-    backdrop-filter: blur(4px);
-
+    background: rgba(0, 0, 0, 0.78);
+    backdrop-filter: blur(6px);
     display: flex;
     flex-direction: column;
     padding: 40px 20px;
@@ -46,22 +44,22 @@ body {
 }
 
 .sidebar a {
-    color: #eaeaea;
+    color: #e5e7eb;
     text-decoration: none;
     padding: 12px 15px;
-    border-radius: 6px;
+    border-radius: 8px;
     transition: 0.25s ease;
 }
 
 .sidebar a:hover,
 .sidebar a.active {
-    background: rgba(255, 255, 255, 0.15);
-    color: white;
+    background: rgba(255, 255, 255, 0.18);
+    color: #ffffff;
 }
 
 .sidebar a.logout {
     margin-top: auto;
-    color: #ff4d4d;
+    color: #f87171;
 }
 
 /* ============================================
@@ -92,28 +90,24 @@ body {
 
 .subtitle {
     text-align: center;
-    color: #e2e2e2;
+    color: #cbd5f5;
     margin-bottom: 28px;
 }
 
 /* ============================================
-   REPORT OUTPUT BOX (IMPORTANT)
+   REPORT OUTPUT BOX
 ============================================ */
 .report-box {
-    background: white;
-    color: black;
-
+    background: #ffffff;
+    color: #0f172a;
     border-radius: 20px;
     padding: 28px 32px;
-
     font-size: 0.95rem;
     line-height: 1.6;
-
-    box-shadow: 0 6px 22px rgba(0,0,0,0.25);
-
-    /* SCROLLING */
+    box-shadow: 0 10px 28px rgba(0,0,0,0.3);
     max-height: calc(100vh - 260px);
     overflow-y: auto;
+    overflow-x: hidden;
 }
 
 /* Scrollbar */
@@ -126,51 +120,160 @@ body {
 }
 
 /* ============================================
-   SAFE STYLING FOR DYNAMIC OUTPUT
-   (whatever JS injects)
+   HEADINGS & TEXT
 ============================================ */
-
-/* Section headings inside report */
 #report-content h2,
 #report-content h3 {
-    margin-top: 28px;
+    margin-top: 42px;
     margin-bottom: 12px;
     padding-bottom: 6px;
-    border-bottom: 1px solid #ddd;
+    font-size: 1.3rem;
+    border-bottom: 1px solid #e5e7eb;
+    color: #0f172a;
 }
 
-/* Paragraphs */
-#report-content p {
-    margin-bottom: 10px;
-}
-
-/* Lists */
-#report-content ul {
-    padding-left: 18px;
-    margin-bottom: 14px;
-}
-
+#report-content p,
 #report-content li {
-    margin-bottom: 6px;
+    color: #1f2937;
 }
 
-/* Cards / blocks (if JS uses divs) */
-#report-content > div {
-    margin-bottom: 22px;
+/* ============================================
+   SUMMARY BLOCK
+============================================ */
+.summary {
+    background: #0f172a;
+    color: #f8fafc;
+    padding: 18px 22px;
+    border-radius: 14px;
+    margin-bottom: 30px;
 }
 
-/* Tables (if any) */
-#report-content table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-bottom: 20px;
+/* ============================================
+   CARD BASE (IMPORTANT)
+   ALL CARDS SHARE SAME BASE
+============================================ */
+.cluster-block,
+.port-block,
+.tech-box,
+.strategy-card {
+    background: #1e293b;
+    color: #e5e7eb;
+    border-radius: 12px;
 }
 
-#report-content th,
-#report-content td {
-    border: 1px solid #ddd;
-    padding: 10px;
-    text-align: left;
+/* ============================================
+   CLUSTERS
+============================================ */
+.cluster-block {
+    border-left: 4px solid #2563eb;
+    padding: 16px 18px;
+    margin-bottom: 18px;
+}
+
+.cluster-block h4 {
+    color: #ffffff;
+}
+
+/* ============================================
+   PORT BLOCKS (FIXED VISIBILITY)
+============================================ */
+.port-block {
+    padding: 15px;
+    margin-bottom: 16px;
+}
+
+.port-block strong {
+    color: #ffffff;
+}
+
+.port-block p,
+.port-block li {
+    color: #e5e7eb; /* 🔥 fixes "No open ports detected" */
+}
+
+/* Explicit safety */
+.no-ports {
+    color: #e5e7eb;
+    font-style: italic;
+}
+
+/* ============================================
+   TECHNOLOGY BOXES
+============================================ */
+.tech-box {
+    padding: 15px;
+    margin-bottom: 16px;
+}
+
+.tech-box h4 {
+    color: #ffffff;
+}
+
+.tech-item strong {
+    color: #38bdf8;
+}
+
+/* ============================================
+   HTTP ANOMALIES
+============================================ */
+.anomaly-row {
+    background: #fffbeb;
+    color: #78350f;
+    border-left: 4px solid #f59e0b;
+    padding: 14px 16px;
+    border-radius: 10px;
+    margin-bottom: 12px;
+}
+
+/* ============================================
+   KPI CARDS
+============================================ */
+.kpi-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    margin: 20px 0;
+}
+
+.kpi {
+    flex: 1 1 200px;
+    background: #2563eb;
+    color: #ffffff;
+    padding: 20px;
+    border-radius: 14px;
+    text-align: center;
+    font-weight: 700;
+}
+
+/* ============================================
+   CHARTS (NO OVERLAP GUARANTEE)
+============================================ */
+.charts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+    margin: 30px 0;
+}
+
+.charts-grid canvas {
+    height: 260px !important;
+    width: 100% !important;
+    display: block;
+    background: #ffffff;
+    border-radius: 12px;
+}
+
+/* ============================================
+   STRATEGY CARDS
+============================================ */
+.strategy-card {
+    padding: 18px 22px;
+    margin-bottom: 16px;
+    border-left: 4px solid #2563eb;
+}
+
+.strategy-card h4 {
+    color: #38bdf8;
 }
 
 /* ============================================
@@ -184,58 +287,40 @@ body {
 }
 
 .button-group button {
-    background: white;
-    color: black;
-
+    background: #ffffff;
+    color: #111827;
     padding: 12px 28px;
-    border-radius: 8px;
+    border-radius: 10px;
     border: none;
-
     cursor: pointer;
     font-size: 1rem;
     font-weight: 600;
-
-    box-shadow: 0 0 12px rgba(255,255,255,0.4);
-    transition: 0.25s ease;
 }
 
-.button-group button:hover {
-    background: #e5e5e5;
-    transform: translateY(-3px);
-    box-shadow: 0 0 20px rgba(255,255,255,0.7);
-}
-/* ===============================
-   MODEL 5 – STATISTICS & GRAPHS
-================================ */
 
-.kpi-row {
-  display: flex;
-  gap: 20px;
-  margin: 20px 0;
-}
+/* ============================================
+   FORCE WHITE TEXT INSIDE ALL CARDS
+============================================ */
+.card,
+.card *,
 
-.kpi {
-  flex: 1;
-  background: rgba(255, 255, 255, 0.08);
-  padding: 15px;
-  border-radius: 10px;
-  text-align: center;
-  font-weight: bold;
-}
+.cluster-block,
+.cluster-block *,
 
-.charts-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 30px;
-  margin: 30px 0;
+.port-block,
+.port-block *,
+
+.tech-box,
+.tech-box *,
+
+.strategy-card,
+.strategy-card *,
+
+.kpi,
+.kpi * {
+    color: #ffffff !important;
 }
 
-.attack-chain-box {
-  background: rgba(255,255,255,0.05);
-  padding: 15px;
-  border-radius: 10px;
-}
-
-.chain-item {
-  margin-bottom: 6px;
+.anomaly-row.card *{
+    color:#78350f !important; 
 }

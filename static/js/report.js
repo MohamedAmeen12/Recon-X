@@ -4,161 +4,210 @@ document.addEventListener("DOMContentLoaded", async () => {
   const domainTitle = document.getElementById("domain-title");
   const reportContent = document.getElementById("report-content");
 
+  /* ===============================
+     CHART REGISTRY (PREVENT OVERLAP)
+  =============================== */
+  const chartRegistry = {};
+
+  /* ===============================
+     VALIDATION
+  =============================== */
   if (!domain) {
     reportContent.innerHTML = "<p style='color:red;'>No domain specified!</p>";
     return;
   }
 
   domainTitle.textContent = `Domain: ${domain}`;
+  reportContent.innerHTML = "<p>Loading report…</p>";
 
-  // ===============================
-  // MODEL 5 – CHART HELPERS (GLOBAL)
-  // ===============================
+  /* ===============================
+     CHART HELPERS
+  =============================== */
   function renderPie(canvasId, data) {
-    if (!data || Object.keys(data).length === 0) return;
+    if (!data || !Object.keys(data).length) return;
     const el = document.getElementById(canvasId);
     if (!el) return;
 
-    new Chart(el, {
+    if (chartRegistry[canvasId]) {
+      chartRegistry[canvasId].destroy();
+    }
+
+    chartRegistry[canvasId] = new Chart(el, {
       type: "doughnut",
       data: {
         labels: Object.keys(data),
-        datasets: [{ data: Object.values(data) }]
+        datasets: [{
+          data: Object.values(data),
+          backgroundColor: [
+            "#3b82f6",
+            "#10b981",
+            "#f59e0b",
+            "#ef4444",
+            "#8b5cf6",
+            "#14b8a6"
+          ],
+          borderWidth: 0
+        }]
       },
       options: {
         responsive: true,
-        plugins: { legend: { position: "bottom" } }
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: "bottom" }
+        }
       }
     });
   }
 
   function renderBar(canvasId, data) {
-    if (!data || Object.keys(data).length === 0) return;
+    if (!data || !Object.keys(data).length) return;
     const el = document.getElementById(canvasId);
     if (!el) return;
 
-    new Chart(el, {
+    if (chartRegistry[canvasId]) {
+      chartRegistry[canvasId].destroy();
+    }
+
+    chartRegistry[canvasId] = new Chart(el, {
       type: "bar",
       data: {
         labels: Object.keys(data),
-        datasets: [{ data: Object.values(data) }]
+        datasets: [{
+          data: Object.values(data),
+          backgroundColor: "#3b82f6",
+          borderRadius: 6
+        }]
       },
       options: {
         responsive: true,
-        plugins: { legend: { display: false } }
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { beginAtZero: true }
+        }
       }
     });
   }
 
+  /* ===============================
+     FETCH REPORT
+  =============================== */
   try {
-    const resp = await fetch(`http://localhost:5000/get_report?domain=${encodeURIComponent(domain)}`);
+    const resp = await fetch(
+      `http://localhost:5000/get_report?domain=${encodeURIComponent(domain)}`
+    );
     if (!resp.ok) throw new Error("Failed to load report");
-    const data = await resp.json();
 
+    const data = await resp.json();
     if (!data.result) {
-      reportContent.innerHTML = "<p>No report data found for this domain.</p>";
+      reportContent.innerHTML = "<p>No report data found.</p>";
       return;
     }
 
     const r = data.result;
 
-    // ====================================================
-    // MODEL 1 DATA (UNCHANGED)
-    // ====================================================
+    /* ===============================
+       MODEL 1 – CLUSTERS
+    =============================== */
     const portMap = {};
-    if (r.raw_docs) {
-      r.raw_docs.forEach(doc => {
-        portMap[doc.subdomain] = doc.open_ports || [];
-      });
-    }
+    r.raw_docs?.forEach(doc => {
+      portMap[doc.subdomain] = doc.open_ports || [];
+    });
 
     const clustersHTML = (r.clusters || []).map(c => {
-      const ex = (c.examples || []).map(sub => {
+      const items = (c.examples || []).map(sub => {
         const ports = portMap[sub] || [];
-        const portsText = ports.length
+        const text = ports.length
           ? ports.map(p => `${p.port}/${p.service}`).join(", ")
           : "No open ports";
-
-        return `<li><strong>${sub}</strong>
-          <span style="color:#3b82f6; margin-left:8px;">(${portsText})</span>
-        </li>`;
+        return `
+          <li>
+            <strong>${sub}</strong>
+            <span class="card-text">(${text})</span>
+          </li>`;
       }).join("");
 
-      return `<div class="cluster-block">
-        <h4>Cluster ${c.cluster_id} (${c.size} items)</h4>
-        <ul>${ex}</ul>
-      </div>`;
+      return `
+        <div class="cluster-block card">
+          <h4>Cluster ${c.cluster_id} (${c.size})</h4>
+          <ul>${items}</ul>
+        </div>`;
     }).join("");
 
     const examplesHTML = (r.examples || []).map(e => `<li>${e}</li>`).join("");
 
-    // ====================================================
-    // MODEL 2
-    // ====================================================
-    let model2HTML = "";
-    if (Object.keys(portMap).length > 0) {
-      model2HTML = `<h3>Open Ports & Services (Model 2)</h3>` +
-        Object.entries(portMap).map(([sub, ports]) => `
-          <div class="port-block">
-            <strong>${sub}</strong>
-            ${ports.length
-              ? `<ul>${ports.map(p => `<li>${p.port}/${p.service}</li>`).join("")}</ul>`
-              : "<p>No open ports detected</p>"}
-          </div>
-        `).join("");
-    }
+    /* ===============================
+       MODEL 2 – OPEN PORTS
+    =============================== */
+    const model2HTML = Object.keys(portMap).length ? `
+      <h3>Open Ports & Services (Model 2)</h3>
+      ${Object.entries(portMap).map(([sub, ports]) => `
+        <div class="port-block card">
+          <strong>${sub}</strong>
+          ${ports.length
+            ? `<ul>${ports.map(p =>
+                `<li>${p.port}/${p.service}</li>`).join("")}</ul>`
+            : `<p class="card-text">No open ports detected</p>`}
+        </div>
+      `).join("")}
+    ` : "";
 
-    // ====================================================
-    // MODEL 3
-    // ====================================================
-    let technologiesHTML = "";
-    if (r.technology_fingerprints?.length) {
-      technologiesHTML = r.technology_fingerprints.map(t => `
-        <div class="tech-box">
-          <h4>${t.url || "N/A"}</h4>
+    /* ===============================
+       MODEL 3 – TECHNOLOGIES
+    =============================== */
+    const technologiesHTML = r.technology_fingerprints?.length
+      ? r.technology_fingerprints.map(t => `
+        <div class="tech-box card">
+          <h4>${t.url || "Unknown URL"}</h4>
           ${t.technologies.map(tech => `
-            <div class="tech-item">
-              <strong>${tech.technology}</strong> ${tech.version || ""}
-              <br><small>Status: ${tech.vulnerability_status}</small>
+            <div class="tech-item card-text">
+              <strong>${tech.technology}</strong>
+              ${tech.version || ""}
+              <br>
+              <small>Status: ${tech.vulnerability_status}</small>
             </div>
           `).join("")}
         </div>
-      `).join("");
-    }
+      `).join("")
+      : "";
 
-    // ====================================================
-    // MODEL 4
-    // ====================================================
-    let model4HTML = "";
-    if (r.http_anomalies?.length) {
-      model4HTML = `<h3>HTTP Anomaly Detection (Model 4)</h3>` +
-        r.http_anomalies.map(a => `
-          <div class="anomaly-row">
-            <strong>${a.subdomain}</strong><br>
+    /* ===============================
+       MODEL 4 – HTTP ANOMALIES
+    =============================== */
+    const model4HTML = r.http_anomalies?.length ? `
+      <h3>HTTP Anomaly Detection (Model 4)</h3>
+      ${r.http_anomalies.map(a => `
+        <div class="anomaly-row card">
+          <strong>${a.subdomain}</strong><br>
+          <span class="card-text">
             Status: ${a.model4_result?.status || "UNKNOWN"}
-          </div>
-        `).join("");
-    }
+          </span>
+        </div>
+      `).join("")}
+    ` : "";
 
-    // ====================================================
-    // MODEL 5 – STATISTICS (NEW)
-    // ====================================================
+    /* ===============================
+       MODEL 5 – STATISTICS (VERTICAL CHARTS)
+    =============================== */
     let model5StatsHTML = "";
     if (r.model5?.statistics) {
       const s = r.model5.statistics;
 
       model5StatsHTML = `
         <h3>Exploitation Strategy – Statistics (Model 5)</h3>
+
         <div class="kpi-row">
-          <div class="kpi">Total Strategies<br>${r.model5.strategy_count}</div>
-          <div class="kpi">MITRE Techniques<br>${Object.keys(s.by_mitre || {}).length}</div>
-          <div class="kpi">Weaponized<br>${s.by_exploit_type?.weaponized || 0}</div>
+          <div class="kpi card">Total Strategies<br>${r.model5.strategy_count}</div>
+          <div class="kpi card">MITRE Techniques<br>${Object.keys(s.by_mitre || {}).length}</div>
+          <div class="kpi card">Weaponized<br>${s.by_exploit_type?.weaponized || 0}</div>
         </div>
-        <div class="charts-grid">
-          <canvas id="m5-source-chart"></canvas>
-          <canvas id="m5-confidence-chart"></canvas>
-          <canvas id="m5-mitre-chart"></canvas>
-          <canvas id="m5-port-chart"></canvas>
+
+        <!-- 🔥 VERTICAL CHART STACK -->
+        <div class="charts-vertical">
+          <div class="chart-item"><canvas id="m5-source-chart"></canvas></div>
+          <div class="chart-item"><canvas id="m5-confidence-chart"></canvas></div>
+          <div class="chart-item"><canvas id="m5-mitre-chart"></canvas></div>
+          <div class="chart-item"><canvas id="m5-port-chart"></canvas></div>
         </div>
       `;
 
@@ -170,26 +219,30 @@ document.addEventListener("DOMContentLoaded", async () => {
       });
     }
 
-    // ====================================================
-    // MODEL 5 – RAW STRATEGIES (UNCHANGED)
-    // ====================================================
-    let model5HTML = "";
-    if (r.model5?.strategies?.length) {
-      model5HTML = `<h3>Exploitation Strategies (Model 5)</h3>` +
-        r.model5.strategies.map(s => `
-          <div class="strategy-card">
-            <h4>${s.technology} ${s.version || ""}</h4>
-            <p>${s.attack_chain.join(" → ")}</p>
-          </div>
-        `).join("");
-    }
+    /* ===============================
+       MODEL 5 – STRATEGIES
+    =============================== */
+    const model5HTML = r.model5?.strategies?.length ? `
+      <h3>Exploitation Strategies (Model 5)</h3>
+      ${r.model5.strategies.map(s => `
+        <div class="strategy-card card">
+          <h4>${s.technology} ${s.version || ""}</h4>
+          <p class="card-text">
+            <strong>Attack Chain:</strong> ${s.attack_chain.join(" → ")}
+          </p>
+          ${s.confidence
+            ? `<p class="card-text"><strong>Confidence:</strong> ${s.confidence}</p>`
+            : ""}
+        </div>
+      `).join("")}
+    ` : "";
 
-    // ====================================================
-    // FINAL RENDER
-    // ====================================================
+    /* ===============================
+       FINAL RENDER
+    =============================== */
     reportContent.innerHTML = `
-      <div class="summary">
-        <p><strong>Total Candidates:</strong> ${r.total_candidates || 0}</p>
+      <div class="summary card">
+        <strong>Total Candidates:</strong> ${r.total_candidates || 0}
       </div>
 
       <h3>Clusters (Model 1)</h3>
@@ -201,13 +254,13 @@ document.addEventListener("DOMContentLoaded", async () => {
       ${model2HTML}
       ${technologiesHTML}
       ${model4HTML}
-
       ${model5StatsHTML}
       ${model5HTML}
     `;
 
   } catch (err) {
     console.error(err);
-    reportContent.innerHTML = `<p style='color:red;'>Error loading report: ${err.message}</p>`;
+    reportContent.innerHTML =
+      `<p style="color:red;">Error loading report: ${err.message}</p>`;
   }
 });
