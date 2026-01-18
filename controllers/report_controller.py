@@ -8,12 +8,18 @@ from config.database import (
     reports_collection, technologies_collection, vulnerabilities_collection
 )
 
+# ==============================
+# MODEL 5 IMPORTS
+# ==============================
+from models.model5 import run_model_5
+from utils.strategy_stats import build_strategy_statistics
+# ==============================
+
 report_bp = Blueprint('report', __name__)
 
 
 @report_bp.route("/get_technologies", methods=["GET"])
 def get_technologies():
-    """Get technology fingerprints and vulnerabilities for a domain from MongoDB."""
     domain = request.args.get("domain", "").strip()
     
     if not domain:
@@ -52,8 +58,10 @@ def get_report():
     if not record:
         return jsonify({"message": "No report found"}), 404
 
-    # If technology_fingerprints is missing or empty, fetch from MongoDB
-    if not record.get("result", {}).get("technology_fingerprints") or len(record.get("result", {}).get("technology_fingerprints", [])) == 0:
+    # ====================================================
+    # EXISTING LOGIC – TECHNOLOGY FINGERPRINT FALLBACK
+    # ====================================================
+    if not record.get("result", {}).get("technology_fingerprints"):
         try:
             technologies = list(technologies_collection.find(
                 {"domain": domain},
@@ -65,23 +73,16 @@ def get_report():
                 {"_id": 0}
             ).sort("cvss_score", -1))
             
-            # Group technologies by subdomain/url
             tech_by_url = {}
             for tech in technologies:
                 url = tech.get("url", f"http://{tech.get('subdomain', '')}")
-                if url not in tech_by_url:
-                    tech_by_url[url] = {
-                        "url": url,
-                        "technologies": []
-                    }
+                tech_by_url.setdefault(url, {"url": url, "technologies": []})
                 
-                existing_tech = next(
-                    (t for t in tech_by_url[url]["technologies"] 
-                     if t.get("technology") == tech.get("technology") and t.get("version") == tech.get("version")),
-                    None
-                )
-                
-                if not existing_tech:
+                if not any(
+                    t["technology"] == tech.get("technology") and
+                    t["version"] == tech.get("version")
+                    for t in tech_by_url[url]["technologies"]
+                ):
                     tech_cves = [
                         {
                             "cve": v.get("cve_id"),
@@ -92,11 +93,11 @@ def get_report():
                             "cwe": v.get("cwe", "N/A")
                         }
                         for v in vulnerabilities
-                        if v.get("subdomain") == tech.get("subdomain") and 
+                        if v.get("subdomain") == tech.get("subdomain") and
                            v.get("technology") == tech.get("technology") and
                            v.get("version") == tech.get("version")
                     ]
-                    
+
                     tech_by_url[url]["technologies"].append({
                         "technology": tech.get("technology"),
                         "version": tech.get("version"),
@@ -108,22 +109,56 @@ def get_report():
                         "similarity_score": tech.get("similarity_score", 0.0),
                         "cves": tech_cves
                     })
-            
-            technology_fingerprints = list(tech_by_url.values())
-            
-            if "result" not in record:
-                record["result"] = {}
-            record["result"]["technology_fingerprints"] = technology_fingerprints
-            
+
+            record.setdefault("result", {})["technology_fingerprints"] = list(tech_by_url.values())
+
             reports_collection.update_one(
                 {"domain": domain},
                 {"$set": {"result": record["result"]}}
             )
-            
+
         except Exception as e:
-            print(f"Error fetching technologies for report: {e}")
-            import traceback
-            traceback.print_exc()
+            print(f"[Tech Fingerprint Error] {e}")
+
+    # ====================================================
+    # ✅ FIXED MODEL 5 LOGIC (REUSE + STATISTICS)
+    # ====================================================
+    try:
+        result = record.get("result", {})
+
+        # ✅ CASE 1: Model 5 already exists → reuse it
+        if result.get("model5"):
+            model5_result = result["model5"]
+
+            # Add statistics if missing
+            if "statistics" not in model5_result:
+                model5_result["statistics"] = build_strategy_statistics(
+                    model5_result.get("strategies", [])
+                )
+
+        # ✅ CASE 2: Model 5 does NOT exist → generate it
+        else:
+            port_scan_results = result.get("port_scan_results", [])
+            technology_results = result.get("technology_fingerprints", [])
+            http_anomaly_result = {}
+
+            if result.get("http_anomalies"):
+                http_anomaly_result = result["http_anomalies"][0].get("model4_result", {})
+
+            model5_result = run_model_5(
+                port_scan_results=port_scan_results,
+                technology_results=technology_results,
+                http_anomaly_result=http_anomaly_result
+            )
+
+            model5_result["statistics"] = build_strategy_statistics(
+                model5_result.get("strategies", [])
+            )
+
+        record["result"]["model5"] = model5_result
+
+    except Exception as e:
+        print(f"[Model 5 Error] {e}")
 
     record["_id"] = str(record["_id"])
     return jsonify(record)
@@ -131,7 +166,6 @@ def get_report():
 
 @report_bp.route("/verify_headers", methods=["GET"])
 def verify_headers():
-    """Fetch and return HTTP headers from a URL for verification."""
     url = request.args.get("url", "").strip()
     
     if not url:
@@ -155,21 +189,13 @@ def verify_headers():
             "Final-URL": response.url
         }
         
-        all_headers = dict(response.headers)
-        
         return jsonify({
             "url": url,
             "final_url": response.url,
             "status_code": response.status_code,
             "relevant_headers": headers,
-            "all_headers": all_headers,
             "verification_timestamp": datetime.datetime.utcnow().isoformat()
         }), 200
         
-    except requests.exceptions.RequestException as e:
-        return jsonify({
-            "error": f"Failed to fetch headers: {str(e)}",
-            "url": url
-        }), 500
     except Exception as e:
         return jsonify({"error": str(e)}), 500
