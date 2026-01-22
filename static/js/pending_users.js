@@ -2,7 +2,7 @@
 
 async function fetchPendingUsers() {
   try {
-    const response = await fetch("http://127.0.0.1:5000/get_pending_users");
+    const response = await fetch("http://localhost:5000/admin/get_pending_users");
     const data = await response.json();
     console.log("Fetched pending users:", data); // debug log
 
@@ -35,7 +35,7 @@ async function fetchPendingUsers() {
 
 async function approveUser(email, action) {
   try {
-    const response = await fetch("http://127.0.0.1:5000/approve_user", {
+    const response = await fetch("http://localhost:5000/admin/approve_user", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, action })

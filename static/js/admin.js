@@ -1,9 +1,9 @@
-const BASE_URL = "http://127.0.0.1:5000";
+const BASE_URL = "http://localhost:5000";
 
 // Fetch users and display in table
 async function fetchUsers() {
   try {
-    const response = await fetch(`${BASE_URL}/get_users`);
+    const response = await fetch(`${BASE_URL}/admin/get_users`);
     if (!response.ok) throw new Error("Failed to fetch users");
     const users = await response.json();
 
@@ -44,7 +44,7 @@ async function addUser(event) {
     return;
   }
 
-  const res = await fetch(`${BASE_URL}/add_user`, {
+  const res = await fetch(`${BASE_URL}/admin/add_user`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ username, email, company, password }),
@@ -60,7 +60,7 @@ async function addUser(event) {
 async function deleteUser(userId) {
   if (!confirm("Are you sure you want to delete this user?")) return;
 
-  const res = await fetch(`${BASE_URL}/delete_user/${userId}`, {
+  const res = await fetch(`${BASE_URL}/admin/delete_user/${userId}`, {
     method: "DELETE",
   });
 

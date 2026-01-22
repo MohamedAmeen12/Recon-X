@@ -22,7 +22,17 @@ app = Flask(__name__,
             template_folder='views',
             static_folder='static',
             static_url_path='/static')
-CORS(app)
+app.secret_key = os.environ.get("SECRET_KEY", "reconx_super_secret_key_123")
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",   # ✅ IMPORTANT
+    SESSION_COOKIE_SECURE=False      # localhost only
+)
+CORS(
+    app,
+    supports_credentials=True
+)
+
 
 # ====================================================
 # DATABASE INITIALIZATION

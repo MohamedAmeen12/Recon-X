@@ -9,10 +9,17 @@ from config.database import (
     users_collection, user_logs_collection
 )
 
-admin_bp = Blueprint('admin', __name__)
+from middlewares.admin_middleware import admin_required
+
+admin_bp = Blueprint(
+    'admin',
+    __name__,
+    url_prefix="/admin"   # ⭐ VERY IMPORTANT
+)
 
 
 @admin_bp.route("/get_users", methods=["GET"])
+@admin_required
 def get_users():
     users = []
     for u in users_collection.find():
@@ -27,6 +34,7 @@ def get_users():
 
 
 @admin_bp.route("/add_user", methods=["POST"])
+@admin_required
 def add_user():
     data = request.get_json()
     username = data.get("username")
@@ -53,6 +61,7 @@ def add_user():
 
 
 @admin_bp.route("/delete_user/<user_id>", methods=["DELETE"])
+@admin_required
 def delete_user(user_id):
     result = users_collection.delete_one({"_id": ObjectId(user_id)})
     if result.deleted_count == 0:
@@ -61,6 +70,7 @@ def delete_user(user_id):
 
 
 @admin_bp.route("/get_user_logs", methods=["GET"])
+@admin_required
 def get_user_logs():
     logs = []
     for log in user_logs_collection.find().sort("login_time", -1):
@@ -76,6 +86,7 @@ def get_user_logs():
 
 
 @admin_bp.route("/get_pending_users", methods=["GET"])
+@admin_required
 def get_pending_users():
     """Returns all users where status = 'pending'"""
     pending_users = []
@@ -91,6 +102,7 @@ def get_pending_users():
 
 
 @admin_bp.route("/approve_user", methods=["POST"])
+@admin_required
 def approve_user():
     """Admin approves or declines a pending user."""
     data = request.get_json()

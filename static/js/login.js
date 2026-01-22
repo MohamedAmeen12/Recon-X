@@ -9,8 +9,9 @@ document.getElementById("loginForm").addEventListener("submit", async (event) =>
   }
 
   try {
-    const response = await fetch("http://127.0.0.1:5000/login", {
+    const response = await fetch("http://localhost:5000/login", {
       method: "POST",
+      credentials: "include", 
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password })
     });
@@ -29,7 +30,7 @@ document.getElementById("loginForm").addEventListener("submit", async (event) =>
       localStorage.setItem("role", data.role);
 
       if (data.role === "admin") {
-        window.location.href = "Admin.html";
+        window.location.href = "/admin";
       } else {
         window.location.href = "home.html";
       }

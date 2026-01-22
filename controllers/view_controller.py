@@ -2,7 +2,7 @@
 View Controller - Handles all HTML page rendering
 """
 from flask import render_template, Blueprint
-
+from middlewares.admin_middleware import admin_required
 view_bp = Blueprint('views', __name__)
 
 
@@ -43,26 +43,25 @@ def scan_page():
 def report_page():
     return render_template("report.html")
 
-
 @view_bp.route("/admin")
-@view_bp.route("/Admin.html")
+@admin_required
 def admin_page():
-    return render_template("Admin.html")
+    return render_template("admin/Admin.html")
 
 
-@view_bp.route("/pending_users")
-@view_bp.route("/pending_users.html")
+@view_bp.route("/admin/pending-users")
+@admin_required
 def pending_users_page():
-    return render_template("pending_users.html")
+    return render_template("admin/pending_users.html")
 
 
-@view_bp.route("/user_logs")
-@view_bp.route("/user_logs.html")
+@view_bp.route("/admin/user-logs")
+@admin_required
 def user_logs_page():
-    return render_template("user_logs.html")
+    return render_template("admin/user_logs.html")
 
 
-@view_bp.route("/user_edit")
-@view_bp.route("/user_edit.html")
+@view_bp.route("/admin/user-edit")
+@admin_required
 def user_edit_page():
-    return render_template("user_edit.html")
+    return render_template("admin/user_edit.html")

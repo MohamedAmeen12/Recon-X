@@ -1,9 +1,9 @@
-const BASE_URL = "http://127.0.0.1:5000";
+const BASE_URL = "http://localhost:5000";
 
 // Fetch user logs
 async function fetchUserLogs() {
   try {
-    const response = await fetch(`${BASE_URL}/get_user_logs`);
+    const response = await fetch(`${BASE_URL}/admin/get_user_logs`);
     if (!response.ok) throw new Error("Failed to fetch logs");
     const logs = await response.json();
 

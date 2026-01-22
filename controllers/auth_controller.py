@@ -2,7 +2,7 @@
 Auth Controller - Handles authentication (login, signup)
 """
 import datetime
-from flask import request, jsonify, Blueprint
+from flask import request, jsonify, Blueprint , session
 from werkzeug.security import generate_password_hash, check_password_hash
 from config.database import users_collection, user_logs_collection
 
@@ -56,6 +56,11 @@ def login():
             "ip": ip_address,
             "login_time": datetime.datetime.utcnow()
         })
+        session["logged_in"] = True
+        session["user_id"] = "admin"
+        session["role"] = "admin"
+        session["email"] = email
+        print("SESSION AFTER LOGIN:", dict(session))
         return jsonify({"message": "Admin login successful!", "email": email, "role": "admin"}), 200
 
     # Regular User
@@ -91,6 +96,10 @@ def login():
             "ip": ip_address,
             "login_time": datetime.datetime.utcnow()
         })
+        session["logged_in"] = True
+        session["user_id"] = str(user["_id"])
+        session["role"] = user.get("role", "user")
+        session["email"] = user.get("email")
         return jsonify({"message": "Login successful!", "email": user["email"], "role": "user"}), 200
     else:
         user_logs_collection.insert_one({
