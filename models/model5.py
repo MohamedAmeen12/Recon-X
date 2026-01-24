@@ -83,18 +83,18 @@ def map_to_mitre(technology: str) -> str:
     tech = technology.lower()
 
     if any(x in tech for x in ["wordpress", "drupal", "joomla"]):
-        return "T1190 – Exploit Public-Facing Application"
+        return "T1190 - Exploit Public-Facing Application"
 
     if any(x in tech for x in ["apache", "nginx", "iis"]):
-        return "T1190 – Exploit Public-Facing Application"
+        return "T1190 - Exploit Public-Facing Application"
 
     if any(x in tech for x in ["redis", "mongodb", "mysql"]):
-        return "T1046 – Network Service Discovery"
+        return "T1046 - Network Service Discovery"
 
     if "ssh" in tech:
-        return "T1110 – Brute Force"
+        return "T1110 - Brute Force"
 
-    return "T1190 – Exploit Public-Facing Application"
+    return "T1190 - Exploit Public-Facing Application"
 
 
 def build_attack_chain(technology: str) -> list:
@@ -209,7 +209,7 @@ def run_model_5(
     )
 
     return {
-        "model": "Model 5 – Exploitation Strategy",
+        "model": "Model 5 - Exploitation Strategy",
         "strategy_count": len(strategies),
         "strategies": strategies
     }

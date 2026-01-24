@@ -63,7 +63,7 @@ class HTTPAnomalyModel:
             self.model_path
         )
 
-        print("✅ Model 4 trained and saved successfully")
+        print("[OK] Model 4 trained and saved successfully")
 
     # ==================================================
     # LOAD TRAINED MODEL
@@ -71,11 +71,11 @@ class HTTPAnomalyModel:
     def load(self):
         if not os.path.exists(self.model_path):
             raise FileNotFoundError(
-                "❌ Model 4 is not trained yet. Train it first."
+                "[X] Model 4 is not trained yet. Train it first."
             )
 
         self.model, self.scaler = joblib.load(self.model_path)
-        print("✅ Model 4 loaded")
+        print("[OK] Model 4 loaded")
 
     # ==================================================
     # PREDICT ANOMALY

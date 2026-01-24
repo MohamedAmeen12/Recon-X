@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -14,24 +15,25 @@
 
   <!-- Sidebar -->
   <aside class="sidebar">
-  <a href="/home">Dashboard</a>
+    <a href="/home">Dashboard</a>
     <a href="/scan" class="active">Scan</a>
+    <a href="/history">History</a>
     <a href="/home#analytics">Analytics</a>
     <a href="/report">Reports</a>
-    <a href="/login" class="logout">Logout</a>
+    <a href="javascript:void(0)" onclick="logout()" class="logout">Logout</a>
 
   </aside>
 
   <!-- Main Content -->
   <main class="scan-container">
-      <h1>Enter a Domain to Scan</h1>
-      <p class="subtext">Insert the domain you want ReconX to analyze.<br>
+    <h1>Enter a Domain to Scan</h1>
+    <p class="subtext">Insert the domain you want ReconX to analyze.<br>
       Our AI engine will perform advanced reconnaissance.</p>
 
-      <form class="scan-form">
-    <input type="text" id="domain-input" placeholder="e.g., example.com" required>
-    <button type="submit" id="scan-btn">Start Scan</button>
-</form>
+    <form class="scan-form">
+      <input type="text" id="domain-input" placeholder="e.g., example.com" required>
+      <button type="submit" id="scan-btn">Start Scan</button>
+    </form>
 
   </main>
 
@@ -40,6 +42,8 @@
     © 2025 ReconX — Empowering defenders with AI-driven reconnaissance.
   </footer>
 
-<script src="/static/js/scan.js"></script>
+  <script src="/static/js/scan.js"></script>
+  <script src="/static/js/auth.js"></script>
 </body>
+
 </html>

@@ -48,7 +48,8 @@ def connect_mongodb():
             )
 
             client.server_info()
-            print("✅ MongoDB connected")
+            client.server_info()
+            print("[OK] MongoDB connected")
 
             db = client["reconx_db"]
 
@@ -64,10 +65,10 @@ def connect_mongodb():
             return True
 
         except Exception as e:
-            print(f"❌ MongoDB error: {e}")
+            print(f"[X] MongoDB error: {e}")
             time.sleep(RETRY_DELAY)
 
-    print("⚠️ MongoDB OFFLINE — using dummy collections")
+    print("[!] MongoDB OFFLINE — using dummy collections")
     _init_dummy_collections()
     return False
 

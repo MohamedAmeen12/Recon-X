@@ -110,3 +110,10 @@ def login():
             "login_time": datetime.datetime.utcnow()
         })
         return jsonify({"message": "Incorrect password!"}), 401
+
+
+@auth_bp.route("/logout", methods=["POST", "GET"])
+def logout():
+    session.clear()
+    return jsonify({"message": "Logged out successfully"}), 200
+

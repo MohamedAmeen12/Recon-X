@@ -3,7 +3,8 @@ Report Controller - Handles report retrieval and technology verification
 """
 import datetime
 import requests
-from flask import request, jsonify, Blueprint
+from flask import request, jsonify, Blueprint, session
+from bson.objectid import ObjectId
 from config.database import (
     reports_collection, technologies_collection, vulnerabilities_collection
 )
@@ -47,29 +48,76 @@ def get_technologies():
         return jsonify({"error": str(e)}), 500
 
 
+
 @report_bp.route("/get_report", methods=["GET"])
 def get_report():
     domain = request.args.get("domain", "").strip()
+    report_id = request.args.get("report_id", "").strip()
+    
+    # 1. AUTH CHECK
+    if "user_id" not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+        
+    current_user_id = session["user_id"]
+    is_admin = session.get("role") == "admin"
 
-    if not domain:
-        return jsonify({"error": "Domain is required"}), 400
+    record = None
 
-    record = reports_collection.find_one({"domain": domain})
+    # 2. FETCH BY ID
+    if report_id:
+        try:
+            record = reports_collection.find_one({"_id": ObjectId(report_id)})
+        except:
+            return jsonify({"error": "Invalid Report ID"}), 400
+
+    # 3. FALLBACK: FETCH BY DOMAIN (LATEST FOR USER)
+    elif domain:
+        # If admin, just get the latest global report (or specific user's logic? For now, latest owned by anyone or maybe just latest scan on that domain)
+        # But requirement says "see only their scan" for users.
+        if is_admin:
+             record = reports_collection.find_one(
+                {"domain": domain},
+                sort=[("scanned_at", -1)]
+             )
+        else:
+            record = reports_collection.find_one(
+                {"domain": domain, "user_id": current_user_id},
+                sort=[("scanned_at", -1)]
+            )
+    else:
+        return jsonify({"error": "Domain or Report ID required"}), 400
+
     if not record:
         return jsonify({"message": "No report found"}), 404
+
+    # 4. OWNERSHIP CHECK (Skip for Admin)
+    # If the record has a user_id, check it. (Legacy records might not have user_id, maybe allow those or block? Assuming new system.)
+    record_owner = record.get("user_id")
+    if not is_admin and record_owner and str(record_owner) != str(current_user_id):
+        return jsonify({"error": "Unauthorized access to this report"}), 403
 
     # ====================================================
     # EXISTING LOGIC – TECHNOLOGY FINGERPRINT FALLBACK
     # ====================================================
+    # Note: We are now modifying a SNAPSHOT if we update. 
+    # To preserve history immutability, we should probably NOT update the snapshot unless it's a "repair" operation.
+    # But the existing logic updates the record if fingerprints are missing.
+    # We will keep it but be aware it modifies the historical record.
+    
     if not record.get("result", {}).get("technology_fingerprints"):
         try:
+            # Logic to fetch and populate technologies...
+            # This relies on secondary collections (technologies_collection) which are also updated during scan.
+            # Ideally, these should have been embedded in the report at scan time.
+            # But we'll keep the existing "lazy load" logic for backward compatibility or if scan didn't finish populating.
+            
             technologies = list(technologies_collection.find(
-                {"domain": domain},
+                {"domain": record.get("domain")},
                 {"_id": 0}
             ).sort("scanned_at", -1))
             
             vulnerabilities = list(vulnerabilities_collection.find(
-                {"domain": domain},
+                {"domain": record.get("domain")},
                 {"_id": 0}
             ).sort("cvss_score", -1))
             
@@ -112,8 +160,9 @@ def get_report():
 
             record.setdefault("result", {})["technology_fingerprints"] = list(tech_by_url.values())
 
+            # Update the specific snapshot
             reports_collection.update_one(
-                {"domain": domain},
+                {"_id": record["_id"]},
                 {"$set": {"result": record["result"]}}
             )
 
@@ -156,7 +205,7 @@ def get_report():
             )
 
         record["result"]["model5"] = model5_result
-
+        
     except Exception as e:
         print(f"[Model 5 Error] {e}")
 

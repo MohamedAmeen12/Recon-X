@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ReconX | Scan History</title>
+  <link rel="stylesheet" href="/static/css/report.css">
+  <link rel="stylesheet" href="/static/css/history.css">
+</head>
+
+<body>
+
+  <!-- Background Overlay -->
+  <div class="bg-overlay"></div>
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <a href="/home">Dashboard</a>
+    <a href="/scan">Scan</a>
+    <a href="/history" class="active">History</a>
+    <a href="/home#analytics">Analytics</a>
+    <a href="javascript:void(0)" onclick="logout()" class="logout">Logout</a>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="report-wrapper">
+    <div class="history-container">
+      <div class="history-header">
+        <h1 class="history-title">My Scan History</h1>
+      </div>
+
+      <div id="loading" class="loading-container">
+        <div class="spinner"></div>
+        <p>Loading your scan history...</p>
+      </div>
+
+      <div class="history-card">
+        <table class="history-table" id="history-table" style="display:none;">
+          <thead>
+            <tr>
+              <th>Target Domain</th>
+              <th>Scan Date</th>
+              <th>Candidates</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="history-body">
+            <!-- Rows will be populated here -->
+          </tbody>
+        </table>
+
+        <div id="empty-msg" class="empty-state" style="display:none;">
+          <span class="empty-icon">🔍</span>
+          <p class="empty-text">You haven't performed any scans yet.</p>
+          <a href="/scan" class="start-scan-btn">🚀 Start New Scan</a>
+        </div>
+      </div>
+
+      <div id="error-msg"
+        style="color:#ef4444; text-align:center; display:none; margin-top:20px; padding: 20px; background: #fee2e2; border-radius: 8px;">
+      </div>
+
+    </div>
+  </main>
+
+  <script>
+    async function loadHistory() {
+      const loading = document.getElementById('loading');
+      const table = document.getElementById('history-table');
+      const tbody = document.getElementById('history-body');
+      const emptyMsg = document.getElementById('empty-msg');
+      const errorMsg = document.getElementById('error-msg');
+
+      try {
+        const resp = await fetch('/get_history');
+
+        if (resp.status === 401) {
+          window.location.href = '/login';
+          return;
+        }
+
+        if (!resp.ok) {
+          throw new Error('Failed to load history');
+        }
+
+        const data = await resp.json();
+        const history = data.history || [];
+
+        loading.style.display = 'none';
+
+        if (history.length === 0) {
+          emptyMsg.style.display = 'block';
+        } else {
+          table.style.display = 'table';
+          tbody.innerHTML = history.map(item => `
+                    <tr>
+                        <td>
+                            <div class="domain-cell">
+                                <div class="domain-icon">🌐</div>
+                                ${escapeHtml(item.domain)}
+                            </div>
+                        </td>
+                        <td class="date-cell">${new Date(item.scanned_at).toLocaleString()}</td>
+                        <td>
+                            <span class="candidates-badge">${item.candidates} Found</span>
+                        </td>
+                        <td>
+                            <a href="/report?report_id=${item.report_id}" class="view-report-btn">
+                                📄 View Report
+                            </a>
+                        </td>
+                    </tr>
+                `).join('');
+        }
+
+      } catch (err) {
+        loading.style.display = 'none';
+        errorMsg.textContent = err.message;
+        errorMsg.style.display = 'block';
+      }
+    }
+
+    function escapeHtml(text) {
+      if (!text) return "";
+      return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    document.addEventListener('DOMContentLoaded', loadHistory);
+  </script>
+  <script src="/static/js/auth.js"></script>
+</body>
+
+</html>

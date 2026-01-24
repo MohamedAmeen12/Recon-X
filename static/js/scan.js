@@ -28,7 +28,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Create AbortController for timeout
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 600000); // 10 minutes timeout
-    
+
     try {
       const resp = await fetch(url, {
         method: "POST",
@@ -62,16 +62,23 @@ document.addEventListener("DOMContentLoaded", () => {
     submitBtn.textContent = "Scanning...";
 
     try {
-      const resp = await postJSON("http://localhost:5000/scan_domain", { 
+
+      const resp = await postJSON("http://localhost:5000/scan_domain", {
         domain: domain,
-        include_tech_scan: true 
+        include_tech_scan: true
       });
 
       if (resp.ok) {
+        const data = await resp.json();
         showMessage("✅ Scan completed! Redirecting to report...");
 
         setTimeout(() => {
-          window.location.href = `/report?domain=${encodeURIComponent(domain)}`;
+          if (data.report_id) {
+            window.location.href = `/report?report_id=${data.report_id}`;
+          } else {
+            // Fallback for some reason
+            window.location.href = `/report?domain=${encodeURIComponent(domain)}`;
+          }
         }, 1500);
       } else {
         const errData = await resp.json().catch(() => ({}));

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -18,9 +19,10 @@
   <aside class="sidebar">
     <a href="/home">Dashboard</a>
     <a href="/scan">Scan</a>
+    <a href="/history">History</a>
     <a href="/home#analytics">Analytics</a>
     <a href="/report" class="active">Reports</a>
-    <a href="/login" class="logout">Logout</a>
+    <a href="javascript:void(0)" onclick="logout()" class="logout">Logout</a>
   </aside>
 
   <!-- Main Report Section -->
@@ -45,5 +47,7 @@
   </main>
 
   <script src="/static/js/report.js"></script>
+  <script src="/static/js/auth.js"></script>
 </body>
+
 </html>

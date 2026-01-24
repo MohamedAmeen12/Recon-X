@@ -1,6 +1,7 @@
 document.addEventListener("DOMContentLoaded", async () => {
   const params = new URLSearchParams(window.location.search);
   const domain = params.get("domain");
+  const reportId = params.get("report_id");
   const domainTitle = document.getElementById("domain-title");
   const reportContent = document.getElementById("report-content");
 
@@ -12,8 +13,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   /* ===============================
      VALIDATION
   =============================== */
-  if (!domain) {
-    reportContent.innerHTML = "<p style='color:red;'>No domain specified!</p>";
+  if (!domain && !reportId) {
+    reportContent.innerHTML = "<p style='color:red;'>No report specified!</p>";
     return;
   }
 
@@ -93,12 +94,27 @@ document.addEventListener("DOMContentLoaded", async () => {
      FETCH REPORT
   =============================== */
   try {
-    const resp = await fetch(
-      `http://localhost:5000/get_report?domain=${encodeURIComponent(domain)}`
-    );
+    let fetchUrl = "";
+    if (reportId) {
+      fetchUrl = `http://localhost:5000/get_report?report_id=${encodeURIComponent(reportId)}`;
+    } else {
+      fetchUrl = `http://localhost:5000/get_report?domain=${encodeURIComponent(domain)}`;
+    }
+
+    const resp = await fetch(fetchUrl);
+    if (resp.status === 401 || resp.status === 403) {
+      reportContent.innerHTML = "<p style='color:red;'>Unauthorized. Please login to view this report.</p>";
+      return;
+    }
     if (!resp.ok) throw new Error("Failed to load report");
 
     const data = await resp.json();
+
+    // ✅ FIX: Update domain title from backend data if URL param is missing
+    if (data.domain) {
+      domainTitle.textContent = `Domain: ${data.domain}`;
+    }
+
     if (!data.result) {
       reportContent.innerHTML = "<p>No report data found.</p>";
       return;
@@ -145,9 +161,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         <div class="port-block card">
           <strong>${sub}</strong>
           ${ports.length
-            ? `<ul>${ports.map(p =>
-                `<li>${p.port}/${p.service}</li>`).join("")}</ul>`
-            : `<p class="card-text">No open ports detected</p>`}
+        ? `<ul>${ports.map(p =>
+          `<li>${p.port}/${p.service}</li>`).join("")}</ul>`
+        : `<p class="card-text">No open ports detected</p>`}
         </div>
       `).join("")}
     ` : "";
@@ -231,8 +247,8 @@ document.addEventListener("DOMContentLoaded", async () => {
             <strong>Attack Chain:</strong> ${s.attack_chain.join(" → ")}
           </p>
           ${s.confidence
-            ? `<p class="card-text"><strong>Confidence:</strong> ${s.confidence}</p>`
-            : ""}
+        ? `<p class="card-text"><strong>Confidence:</strong> ${s.confidence}</p>`
+        : ""}
         </div>
       `).join("")}
     ` : "";

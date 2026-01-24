@@ -61,10 +61,10 @@ app.register_blueprint(admin_bp)
 # ====================================================
 if __name__ == "__main__":
     print("=" * 60)
-    print("🚀 Starting ReconX Flask Server...")
+    print("[*] Starting ReconX Flask Server...")
     print("=" * 60)
-    print("📍 Server running on: http://localhost:5000")
-    print("📍 Access the application at:")
+    print("[*] Server running on: http://localhost:5000")
+    print("[*] Access the application at:")
     print("   • Login:     http://localhost:5000/login")
     print("   • Signup:    http://localhost:5000/signup")
     print("   • Home:      http://localhost:5000/home")
