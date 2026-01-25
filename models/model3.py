@@ -86,6 +86,7 @@ def lookup_cve(tech_name, version=""):
         from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
         
         # Get NVD API client
+        print(f"DEBUG: [model3.py] attempting to get NVD client...")
         client = get_nvd_client()
         
         # Run CVE lookup with timeout (max 5 seconds per lookup)
@@ -96,8 +97,8 @@ def lookup_cve(tech_name, version=""):
             df = future.result(timeout=5)
             
             if df is not None and not df.empty:
-                # Convert DataFrame to list of dicts (limit to top 5 for speed)
-                for _, row in df.head(5).iterrows():
+                # Convert DataFrame to list of dicts (limit to top 10 for speed and detail)
+                for _, row in df.head(10).iterrows():
                     cves.append({
                         "cve": row["cve_id"],
                         "cvss": float(row["cvss_score"]),
@@ -106,10 +107,13 @@ def lookup_cve(tech_name, version=""):
                         "published_date": row["published_date"],
                         "cwe": row["cwe"]
                     })
+                print(f"[Model 3] API Success: Found {len(cves)} CVEs for {tech_name} {version}")
+            else:
+                print(f"[Model 3] API Success: No vulnerabilities found for {tech_name} {version}")
         except FutureTimeoutError:
-            logger.warning(f"CVE lookup timeout for {tech_name} {version}")
+            print(f"[Model 3] CVE lookup timeout for {tech_name} {version}")
         except Exception as e:
-            logger.warning(f"CVE lookup error: {e}")
+            print(f"[Model 3] CVE lookup error for {tech_name} {version}: {e}")
         
         # If no results from API, fallback to known vulnerabilities
         if not cves:
@@ -117,9 +121,10 @@ def lookup_cve(tech_name, version=""):
         
     except ValueError as e:
         # API key not configured, use fallback
+        print(f"[Model 3] API Key missing: {e}")
         cves = match_known_vulnerabilities(tech_name, version)
     except Exception as e:
-        logger.error(f"CVE lookup error: {e}")
+        print(f"[Model 3] Global CVE lookup error: {e}")
         # Fallback to known vulnerabilities
         cves = match_known_vulnerabilities(tech_name, version)
     
@@ -137,17 +142,17 @@ def match_known_vulnerabilities(tech_name, version):
     # Common vulnerability patterns (simplified - in production use real CVE DB)
     vulnerability_db = {
         "apache": {
-            "2.4.41": [{"cve": "CVE-2020-11984", "cvss": 7.5, "description": "Apache HTTP Server vulnerability"}],
-            "2.4.40": [{"cve": "CVE-2020-11984", "cvss": 7.5, "description": "Apache HTTP Server vulnerability"}],
+            "2.4.41": [{"cve": "CVE-2020-11984", "cvss": 7.5, "severity": "HIGH", "description": "Apache HTTP Server vulnerability"}],
+            "2.4.40": [{"cve": "CVE-2020-11984", "cvss": 7.5, "severity": "HIGH", "description": "Apache HTTP Server vulnerability"}],
         },
         "nginx": {
-            "1.18.0": [{"cve": "CVE-2021-23017", "cvss": 7.5, "description": "Nginx resolver vulnerability"}],
+            "1.18.0": [{"cve": "CVE-2021-23017", "cvss": 7.5, "severity": "HIGH", "description": "Nginx resolver vulnerability"}],
         },
         "php": {
-            "7.4": [{"cve": "CVE-2021-21703", "cvss": 6.5, "description": "PHP vulnerability"}],
+            "7.4": [{"cve": "CVE-2021-21703", "cvss": 6.5, "severity": "MEDIUM", "description": "PHP vulnerability"}],
         },
         "wordpress": {
-            "5.8": [{"cve": "CVE-2021-44228", "cvss": 9.8, "description": "WordPress vulnerability"}],
+            "5.8": [{"cve": "CVE-2021-44228", "cvss": 9.8, "severity": "CRITICAL", "description": "WordPress vulnerability"}],
         }
     }
     
@@ -158,17 +163,7 @@ def match_known_vulnerabilities(tech_name, version):
                 if ver_key in version.lower() or not version:
                     cves.extend(cve_list)
     
-    # If no specific match, check for general vulnerabilities
-    if not cves:
-        # Add generic check based on version age
-        if version and any(char.isdigit() for char in version):
-            # Older versions more likely to have vulnerabilities
-            cves.append({
-                "cve": "UNKNOWN",
-                "cvss": 5.0,
-                "description": f"Potential vulnerabilities in {tech_name} {version} - recommend update"
-            })
-    
+    # If no specific match, return empty to avoid heuristic guesses
     return cves
 
 

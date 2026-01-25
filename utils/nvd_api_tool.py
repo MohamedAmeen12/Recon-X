@@ -9,6 +9,7 @@ The NVD API key is used for:
 
 Security Note: The API key is loaded from environment variables and never hardcoded.
 """
+print("DEBUG: [nvd_api_tool.py] is being loaded from: " + __file__)
 
 import os
 import time
@@ -55,7 +56,9 @@ class NVDApiClient:
         Raises:
             ValueError: If API key is not found in environment or provided.
         """
-        self.api_key = api_key or os.getenv(NVD_API_KEY_ENV)
+        # FORCE KEY FOR TESTING
+        self.api_key = "556b16c0-df03-46de-99df-b4719b00fdda"
+        print(f"DEBUG: [NVDApiClient] Initialized with key: {self.api_key[:4]}...")
         
         if not self.api_key:
             raise ValueError(

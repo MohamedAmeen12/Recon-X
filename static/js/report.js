@@ -171,21 +171,41 @@ document.addEventListener("DOMContentLoaded", async () => {
     /* ===============================
        MODEL 3 – TECHNOLOGIES
     =============================== */
-    const technologiesHTML = r.technology_fingerprints?.length
-      ? r.technology_fingerprints.map(t => `
+    const model3HTML = r.technology_fingerprints?.length ? `
+      <h3>Technology Fingerprints (Model 3)</h3>
+      ${r.technology_fingerprints.map(t => `
         <div class="tech-box card">
           <h4>${t.url || "Unknown URL"}</h4>
           ${t.technologies.map(tech => `
-            <div class="tech-item card-text">
-              <strong>${tech.technology}</strong>
-              ${tech.version || ""}
+            <div class="tech-item card-text" style="margin-bottom: 10px; padding-bottom: 5px; border-bottom: 1px solid rgba(255,255,255,0.1);">
+              <strong>${tech.technology}</strong> ${tech.version || ""}
               <br>
-              <small>Status: ${tech.vulnerability_status}</small>
+              <small>Category: ${tech.category || "Unknown"} | Status: ${tech.vulnerability_status}</small>
+              ${tech.cves && tech.cves.length ? `
+                <div class="cve-list" style="margin-top: 5px; font-size: 0.85rem;">
+                  <strong>Vulnerabilities:</strong>
+                  <ul style="margin: 5px 0; padding-left: 20px;">
+                    ${tech.cves.map(cve => {
+      const isRealCVE = cve.cve && cve.cve.startsWith("CVE-");
+      return `
+                        <li>
+                          ${isRealCVE ? `
+                            <a href="https://nvd.nist.gov/vuln/detail/${cve.cve}" target="_blank" style="color: #38bdf8; text-decoration: underline;">
+                              ${cve.cve}
+                            </a>` : `
+                            <span style="color: #f59e0b; font-weight: bold;">${cve.cve}</span>
+                          `}
+                          (CVSS: ${cve.cvss}) - ${cve.severity}
+                        </li>`;
+    }).join("")}
+                  </ul>
+                </div>
+              ` : ""}
             </div>
           `).join("")}
         </div>
-      `).join("")
-      : "";
+      `).join("")}
+    ` : "";
 
     /* ===============================
        MODEL 4 – HTTP ANOMALIES
@@ -268,7 +288,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       <ul>${examplesHTML}</ul>
 
       ${model2HTML}
-      ${technologiesHTML}
+      ${model3HTML}
       ${model4HTML}
       ${model5StatsHTML}
       ${model5HTML}
