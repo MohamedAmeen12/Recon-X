@@ -17,6 +17,7 @@ from models.model3 import run_technology_fingerprinting_for_subdomains
 from models.model4 import HTTPAnomalyModel
 from models.model5 import run_model_5
 from utils.http_collector import collect_http_features
+from utils.traffic_collector import capture_traffic
 
 from config.database import (
     subdomains_collection,
@@ -108,7 +109,18 @@ def scan_domain():
                 subdomain = sub.get("subdomain")
                 url = f"http://{subdomain}"
 
-                features = collect_http_features(url)
+                # --- MULTI-MODEL COLLECTION ---
+                # Run HTTP Analysis and Traffic Capture in Parallel
+                with ThreadPoolExecutor(max_workers=2) as coll_exec:
+                    http_future = coll_exec.submit(collect_http_features, url)
+                    traffic_future = coll_exec.submit(capture_traffic, subdomain, duration=3)
+                    
+                    features = http_future.result()
+                    traffic_features = traffic_future.result()
+                    
+                    # Merge features
+                    features.update(traffic_features)
+
                 anomaly_result = model4.predict(features)
 
                 anomaly_doc = {
@@ -118,7 +130,8 @@ def scan_domain():
                     "status": anomaly_result.get("status"),
                     "anomaly_score": anomaly_result.get("anomaly_score"),
                     "signals": anomaly_result.get("signals", []),
-                    "model": "Model 4 - HTTP Anomaly Detection",
+                    "traffic_data": anomaly_result.get("traffic_data", {}),
+                    "model": "Model 4 - HTTP & Traffic Anomaly Detection",
                     "scanned_at": datetime.datetime.utcnow()
                 }
 

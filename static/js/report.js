@@ -208,18 +208,42 @@ document.addEventListener("DOMContentLoaded", async () => {
     ` : "";
 
     /* ===============================
-       MODEL 4 – HTTP ANOMALIES
+       MODEL 4 – HTTP & TRAFFIC ANOMALIES
     =============================== */
     const model4HTML = r.http_anomalies?.length ? `
-      <h3>HTTP Anomaly Detection (Model 4)</h3>
-      ${r.http_anomalies.map(a => `
-        <div class="anomaly-row card">
-          <strong>${a.subdomain}</strong><br>
-          <span class="card-text">
-            Status: ${a.model4_result?.status || "UNKNOWN"}
-          </span>
+      <h3>HTTP & Traffic Anomaly Detection (Model 4)</h3>
+      ${r.http_anomalies.map(a => {
+      const res = a.model4_result || {};
+      const signals = res.signals || [];
+      const isAnom = res.status === 'suspicious';
+      return `
+        <div class="anomaly-row ${isAnom ? 'suspicious' : ''}">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <strong>${a.subdomain}</strong>
+            <span class="badge" style="background: ${isAnom ? '#ef4444' : '#10b981'}; color: white;">
+              ${res.status?.toUpperCase() || "UNKNOWN"}
+            </span>
+          </div>
+          
+          <div class="card-text">
+             ${res.traffic_data ? `
+                <div class="traffic-snippet">
+                  📡 <strong>Traffic Analysis:</strong> ${res.traffic_data.packet_count} packets detected | ${res.traffic_data.tcp_syn_count} SYNs | ${res.traffic_data.unique_ips} Unique IPs
+                </div>
+             ` : ""}
+             
+             <div class="signal-list">
+               ${signals.length ? `
+                 <strong>Audit Findings:</strong>
+                 <ul>
+                   ${signals.map(s => `<li>${s}</li>`).join("")}
+                 </ul>
+               ` : `<small style="color: #94a3b8 !important;">Factual Audit: No security violations identified.</small>`}
+             </div>
+          </div>
         </div>
-      `).join("")}
+      `;
+    }).join("")}
     ` : "";
 
     /* ===============================

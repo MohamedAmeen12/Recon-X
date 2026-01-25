@@ -104,7 +104,7 @@ body {
     padding: 28px 32px;
     font-size: 0.95rem;
     line-height: 1.6;
-    box-shadow: 0 10px 28px rgba(0,0,0,0.3);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.3);
     max-height: calc(100vh - 260px);
     overflow-y: auto;
     overflow-x: hidden;
@@ -114,8 +114,9 @@ body {
 .report-box::-webkit-scrollbar {
     width: 6px;
 }
+
 .report-box::-webkit-scrollbar-thumb {
-    background: rgba(0,0,0,0.25);
+    background: rgba(0, 0, 0, 0.25);
     border-radius: 10px;
 }
 
@@ -188,7 +189,8 @@ body {
 
 .port-block p,
 .port-block li {
-    color: #e5e7eb; /* 🔥 fixes "No open ports detected" */
+    color: #e5e7eb;
+    /* 🔥 fixes "No open ports detected" */
 }
 
 /* Explicit safety */
@@ -321,6 +323,64 @@ body {
     color: #ffffff !important;
 }
 
-.anomaly-row.card *{
-    color:#78350f !important; 
+/* ============================================
+   ANOMALY CARDS (PREMIUM)
+============================================ */
+.anomaly-row {
+    background: #1e293b;
+    border-left: 4px solid #10b981;
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    transition: transform 0.2s ease;
+}
+
+.anomaly-row:hover {
+    transform: translateX(4px);
+}
+
+.anomaly-row.suspicious {
+    border-left-color: #ef4444;
+    background: #450a0a;
+    /* Dark red background for contrast */
+}
+
+.anomaly-row .traffic-snippet {
+    background: rgba(255, 255, 255, 0.05);
+    padding: 8px 12px;
+    border-radius: 8px;
+    margin: 12px 0;
+    font-family: 'Fira Code', monospace;
+    font-size: 0.82rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #22c55e !important;
+    /* Bright green for numbers */
+}
+
+.anomaly-row strong {
+    color: #ffffff !important;
+}
+
+.anomaly-row .signal-list {
+    margin-top: 10px;
+    color: #cbd5e1 !important;
+}
+
+.anomaly-row .signal-list ul {
+    margin: 8px 0;
+    padding-left: 20px;
+    color: #fbbf24 !important;
+    /* Warning yellow for signals */
+}
+
+.anomaly-row .signal-list li {
+    color: #fbbf24 !important;
+}
+
+.anomaly-row .badge {
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
 }

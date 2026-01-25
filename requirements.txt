@@ -9,4 +9,5 @@ python-nmap
 whatweb
 pandas
 urllib3
+scapy
 

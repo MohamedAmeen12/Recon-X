@@ -41,7 +41,14 @@ class HTTPAnomalyModel:
             features.get("insecure_cookies", 0),
             features.get("response_size_kb", 0.0),
             features.get("error_rate", 0.0),
-            features.get("status_entropy", 0.0)
+            features.get("status_entropy", 0.0),
+            
+            # --- Traffic Features (tcpdump) ---
+            features.get("packet_count", 0),
+            features.get("avg_packet_size", 0.0),
+            features.get("tcp_syn_count", 0),
+            features.get("udp_count", 0),
+            features.get("unique_ips", 0)
         ]).reshape(1, -1)
 
     # ==================================================
@@ -96,28 +103,31 @@ class HTTPAnomalyModel:
             "model": "Model 4 - HTTP Anomaly Detection",
             "anomaly_score": round(anomaly_score, 4),
             "status": "suspicious" if prediction == -1 else "normal",
-            "signals": self._signals(features)
+            "signals": self._signals(features),
+            "traffic_data": {
+                "packet_count": features.get("packet_count", 0),
+                "tcp_syn_count": features.get("tcp_syn_count", 0),
+                "unique_ips": features.get("unique_ips", 0)
+            }
         }
 
     # ==================================================
-    # HUMAN-READABLE SIGNALS (NOT RULES)
+    # FACTUAL FINDINGS (NO HEURISTICS)
     # ==================================================
     def _signals(self, features: dict) -> list:
         signals = []
 
-        if features.get("missing_headers", 0) > 0:
-            signals.append("Missing HTTP security headers")
-
         if features.get("cors_wildcard", False):
-            signals.append("Open CORS policy (*)")
+            signals.append("CORS Policy: Wildcard (*) detected")
 
         if features.get("server_exposed", False):
-            signals.append("Server version disclosure")
+            signals.append("Insecure Configuration: Server header disclosure")
 
         if features.get("insecure_cookies", 0) > 0:
-            signals.append("Insecure cookies detected")
+            count = features.get("insecure_cookies")
+            signals.append(f"Insecure Configuration: {count} cookies missing Secure/HttpOnly flags")
 
-        if features.get("error_rate", 0.0) > 0.2:
-            signals.append("High HTTP error rate")
+        if features.get("error_rate", 0.0) >= 0.5:
+            signals.append("Stability: High HTTP error rate (>= 50%)")
 
         return signals
