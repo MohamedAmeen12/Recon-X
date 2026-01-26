@@ -4,9 +4,9 @@ Model 5 – Exploitation Strategy Engine
 Purpose:
 - Generate exploitation strategies
 - Map technologies to attack paths
-- Reference online exploit intelligence
+- Reference exploit intelligence
 - NO risk scoring
-- NO prioritization (handled in Model 6)
+- NO prioritization
 """
 
 import requests
@@ -25,7 +25,7 @@ class ExploitDBSource(ExploitSource):
     BASE_URL = "https://www.exploit-db.com/search"
 
     def search(self, technology, version=None, cve=None):
-        query = cve or technology
+        query = cve or f"{technology} {version}" if version else technology
         if not query:
             return []
 
@@ -34,7 +34,7 @@ class ExploitDBSource(ExploitSource):
                 self.BASE_URL,
                 params={"q": query},
                 headers={"User-Agent": "ReconX"},
-                timeout=10
+                timeout=5
             )
         except requests.RequestException:
             return []
@@ -42,44 +42,37 @@ class ExploitDBSource(ExploitSource):
         return [{
             "source": "Exploit-DB",
             "exploit_type": "public_poc",
-            "execution_mode": "manual",
-            "confidence": "medium"
+            "execution_mode": "manual"
         }]
 
 
 class MetasploitSource(ExploitSource):
-
     def search(self, technology, version=None, cve=None):
         if not technology:
             return []
-
         return [{
             "source": "Metasploit",
             "exploit_type": "weaponized",
-            "execution_mode": "framework",
-            "confidence": "high"
+            "execution_mode": "framework"
         }]
 
 
 class GitHubPoCSource(ExploitSource):
-
     def search(self, technology, version=None, cve=None):
         if not technology:
             return []
-
         return [{
             "source": "GitHub",
             "exploit_type": "community_poc",
-            "execution_mode": "manual",
-            "confidence": "low"
+            "execution_mode": "manual"
         }]
 
 
 # ==============================
-# Attack Mapping (MITRE + Chain)
+# MITRE Technique Mapping
 # ==============================
 
-def map_to_mitre(technology: str) -> str:
+def map_to_mitre(technology):
     tech = technology.lower()
 
     if any(x in tech for x in ["wordpress", "drupal", "joomla"]):
@@ -88,7 +81,7 @@ def map_to_mitre(technology: str) -> str:
     if any(x in tech for x in ["apache", "nginx", "iis"]):
         return "T1190 - Exploit Public-Facing Application"
 
-    if any(x in tech for x in ["redis", "mongodb", "mysql"]):
+    if any(x in tech for x in ["mysql", "redis", "mongo"]):
         return "T1046 - Network Service Discovery"
 
     if "ssh" in tech:
@@ -97,38 +90,61 @@ def map_to_mitre(technology: str) -> str:
     return "T1190 - Exploit Public-Facing Application"
 
 
-def build_attack_chain(technology: str) -> list:
-    tech = technology.lower()
+# ==============================
+# ATTACK CHAIN (ENHANCED BUT SAFE)
+# ==============================
 
+def build_attack_chain(technology, version, has_cve):
+    tech = technology.lower()
     chain = ["Initial Access"]
 
     if any(x in tech for x in ["http", "apache", "nginx", "php", "wordpress"]):
-        chain += [
-            "Web Exploitation",
-            "Webshell Deployment",
-            "Credential Access"
-        ]
+        chain.append("Web Exploitation")
+        chain.append("Exploit Known Vulnerability" if has_cve else "Exploit Misconfiguration")
+        chain.append("Credential Access")
 
-    elif any(x in tech for x in ["database", "redis", "mongo"]):
-        chain += [
-            "Unauthorized Access",
-            "Data Extraction"
-        ]
+    elif "ssh" in tech:
+        chain.append("Credential Brute Force")
+        chain.append("Remote Access")
+
+    elif any(x in tech for x in ["mysql", "redis", "mongo"]):
+        chain.append("Unauthorized Database Access")
+        chain.append("Data Extraction")
 
     else:
         chain.append("Service Exploitation")
 
     chain.append("Privilege Escalation")
-
     return chain
 
 
 # ==============================
-# Model 5 Core Engine
+# CONFIDENCE (JUSTIFIED)
+# ==============================
+
+def calculate_confidence(source, has_cve, version):
+    score = 0
+
+    if source == "Metasploit":
+        score += 3
+    elif source == "Exploit-DB":
+        score += 2
+    else:
+        score += 1
+
+    if has_cve:
+        score += 2
+    if version:
+        score += 1
+
+    return "high" if score >= 6 else "medium" if score >= 4 else "low"
+
+
+# ==============================
+# MODEL 5 CORE
 # ==============================
 
 class ExploitationStrategyEngine:
-
     def __init__(self):
         self.sources = [
             ExploitDBSource(),
@@ -136,19 +152,14 @@ class ExploitationStrategyEngine:
             GitHubPoCSource()
         ]
 
-    def generate_strategies(
-        self,
-        technologies: list,
-        open_ports: list,
-        http_anomalies: dict
-    ) -> list:
-
+    def generate_strategies(self, technologies, open_ports, http_anomalies):
         strategies = []
 
         for tech in technologies:
             tech_name = tech.get("technology")
             version = tech.get("version")
             cves = tech.get("cves", [])
+            has_cve = bool(cves)
 
             for source in self.sources:
                 exploits = source.search(
@@ -165,41 +176,34 @@ class ExploitationStrategyEngine:
                         "exploit_type": exploit["exploit_type"],
                         "execution_mode": exploit["execution_mode"],
                         "mitre_technique": map_to_mitre(tech_name),
-                        "attack_chain": build_attack_chain(tech_name),
+                        "attack_chain": build_attack_chain(
+                            tech_name,
+                            version,
+                            has_cve
+                        ),
                         "related_ports": sorted(set(p["port"] for p in open_ports)),
                         "http_signal": http_anomalies.get("status", "unknown"),
-                        "confidence": exploit["confidence"]
+                        "confidence": calculate_confidence(
+                            exploit["source"],
+                            has_cve,
+                            version
+                        )
                     })
 
+        # Deduplicate (unchanged behavior)
         unique = {}
         for s in strategies:
-            key = (
-                s["technology"],
-                s["version"],
-                s["exploit_source"],
-                s["mitre_technique"]
-            )
+            key = (s["technology"], s["version"], s["exploit_source"])
             unique[key] = s
 
         return list(unique.values())
 
 
 # ==============================
-# Public Runner (Pipeline Entry)
+# PUBLIC RUNNER
 # ==============================
 
-def run_model_5(
-    port_scan_results: list,
-    technology_results: list,
-    http_anomaly_result: dict
-):
-    """
-    Inputs:
-    - From Model 2: port_scan_results
-    - From Model 3: technology_results
-    - From Model 4: http_anomaly_result
-    """
-
+def run_model_5(port_scan_results, technology_results, http_anomaly_result):
     engine = ExploitationStrategyEngine()
 
     strategies = engine.generate_strategies(
