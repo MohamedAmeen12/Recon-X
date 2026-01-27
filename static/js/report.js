@@ -156,7 +156,7 @@ document.addEventListener("DOMContentLoaded", async () => {
        MODEL 2 – OPEN PORTS
     =============================== */
     const model2HTML = Object.keys(portMap).length ? `
-      <h3>Open Ports & Services (Model 2)</h3>
+      <h3>Open Ports & Services</h3>
       ${Object.entries(portMap).map(([sub, ports]) => `
         <div class="port-block card">
           <strong>${sub}</strong>
@@ -172,7 +172,7 @@ document.addEventListener("DOMContentLoaded", async () => {
        MODEL 3 – TECHNOLOGIES
     =============================== */
     const model3HTML = r.technology_fingerprints?.length ? `
-      <h3>Technology Fingerprints (Model 3)</h3>
+      <h3>Technology Fingerprints</h3>
       ${r.technology_fingerprints.map(t => `
         <div class="tech-box card">
           <h4>${t.url || "Unknown URL"}</h4>
@@ -211,7 +211,7 @@ document.addEventListener("DOMContentLoaded", async () => {
        MODEL 4 – HTTP & TRAFFIC ANOMALIES
     =============================== */
     const model4HTML = r.http_anomalies?.length ? `
-      <h3>HTTP & Traffic Anomaly Detection (Model 4)</h3>
+      <h3>HTTP & Traffic Anomaly Detection</h3>
       ${r.http_anomalies.map(a => {
       const res = a.model4_result || {};
       const signals = res.signals || [];
@@ -254,7 +254,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       const s = r.model5.statistics;
 
       model5StatsHTML = `
-        <h3>Exploitation Strategy – Statistics (Model 5)</h3>
+        <h3>Exploitation Strategy – Statistics</h3>
 
         <div class="kpi-row">
           <div class="kpi card">Total Strategies<br>${r.model5.strategy_count}</div>
@@ -283,7 +283,7 @@ document.addEventListener("DOMContentLoaded", async () => {
        MODEL 5 – STRATEGIES
     =============================== */
     const model5HTML = r.model5?.strategies?.length ? `
-      <h3>Exploitation Strategies (Model 5)</h3>
+      <h3>Exploitation Strategies</h3>
       ${r.model5.strategies.map(s => `
         <div class="strategy-card card">
           <h4>${s.technology} ${s.version || ""}</h4>
@@ -305,10 +305,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         <strong>Total Candidates:</strong> ${r.total_candidates || 0}
       </div>
 
-      <h3>Clusters (Model 1)</h3>
+      <h3>Clusters</h3>
       ${clustersHTML}
 
-      <h3>Examples (Model 1)</h3>
+      <h3>Examples</h3>
       <ul>${examplesHTML}</ul>
 
       ${model2HTML}

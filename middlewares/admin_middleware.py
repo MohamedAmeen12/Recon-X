@@ -7,7 +7,7 @@ def admin_required(f):
 
         # Not logged in
         if not session.get("logged_in"):
-            return redirect(url_for("auth.login"))
+            return redirect(url_for("views.login_page"))
 
         # Not admin
         if session.get("role") != "admin":
