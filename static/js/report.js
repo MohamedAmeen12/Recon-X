@@ -156,7 +156,7 @@ document.addEventListener("DOMContentLoaded", async () => {
        MODEL 2 – OPEN PORTS
     =============================== */
     const model2HTML = Object.keys(portMap).length ? `
-      <h3>Open Ports & Services (Model 2)</h3>
+      <h3>Open Ports & Services</h3>
       ${Object.entries(portMap).map(([sub, ports]) => `
         <div class="port-block card">
           <strong>${sub}</strong>
@@ -172,7 +172,7 @@ document.addEventListener("DOMContentLoaded", async () => {
        MODEL 3 – TECHNOLOGIES
     =============================== */
     const model3HTML = r.technology_fingerprints?.length ? `
-      <h3>Technology Fingerprints (Model 3)</h3>
+      <h3>Technology Fingerprints</h3>
       ${r.technology_fingerprints.map(t => `
         <div class="tech-box card">
           <h4>${t.url || "Unknown URL"}</h4>
@@ -211,7 +211,7 @@ document.addEventListener("DOMContentLoaded", async () => {
        MODEL 4 – HTTP & TRAFFIC ANOMALIES
     =============================== */
     const model4HTML = r.http_anomalies?.length ? `
-      <h3>HTTP & Traffic Anomaly Detection (Model 4)</h3>
+      <h3>HTTP & Traffic Anomaly Detection</h3>
       ${r.http_anomalies.map(a => {
       const res = a.model4_result || {};
       const signals = res.signals || [];
@@ -254,7 +254,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       const s = r.model5.statistics;
 
       model5StatsHTML = `
-        <h3>Exploitation Strategy – Statistics (Model 5)</h3>
+        <h3>Exploitation Strategy – Statistics</h3>
 
         <div class="kpi-row">
           <div class="kpi card">Total Strategies<br>${r.model5.strategy_count}</div>
@@ -282,20 +282,80 @@ document.addEventListener("DOMContentLoaded", async () => {
     /* ===============================
        MODEL 5 – STRATEGIES
     =============================== */
-    const model5HTML = r.model5?.strategies?.length ? `
-      <h3>Exploitation Strategies (Model 5)</h3>
-      ${r.model5.strategies.map(s => `
-        <div class="strategy-card card">
-          <h4>${s.technology} ${s.version || ""}</h4>
+    /* ===============================
+       MODEL 5 – STRATEGIES
+    =============================== */
+    // Use the raw strategies directly (backend cleans them up now)
+    const rawStrategies = r.model5?.strategies || [];
+
+    // Feature: Deduplication is still useful for display
+    const uniqueStrategies = [];
+    const seenKeys = new Set();
+
+    rawStrategies.forEach(s => {
+      const attackChainStr = (s.attack_chain || []).join(" -> ");
+      // Key based on CVE and Chain to show unique paths
+      const key = `${s.cve_id}|${attackChainStr}`;
+
+      if (!seenKeys.has(key)) {
+        seenKeys.add(key);
+        uniqueStrategies.push(s);
+      }
+    });
+
+    const model5HTML = uniqueStrategies.length ? `
+      <h3>Exploitation Strategies</h3>
+      ${uniqueStrategies.map(s => {
+      // Build ExploitDB Links if they exist
+      let refHTML = "";
+      if (s.exploit_db_reference && s.exploit_db_reference.length > 0) {
+        refHTML = `<div style="margin-top:5px;"><strong>Exploit References:</strong><ul>`;
+        s.exploit_db_reference.forEach(ref => {
+          refHTML += `<li><a href="${ref.url}" target="_blank" style="color: #38bdf8;">${ref.id}</a> - ${ref.title}</li>`;
+        });
+        refHTML += `</ul></div>`;
+      }
+
+      const isVerified = s.exploit_db_reference && s.exploit_db_reference.length > 0;
+
+      return `
+        <div class="strategy-card card" style="border-left: 4px solid ${isVerified ? '#ef4444' : '#94a3b8'};">
+          <h4>${s.service}</h4>
+          
+          <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+             <span class="badge" style="background: ${isVerified ? '#ef4444' : '#94a3b8'}; color: white;">
+                ${s.evidence_status || "Unknown Status"}
+             </span>
+             <span><strong>CVE:</strong> ${s.cve_id} (Severity: ${s.severity})</span>
+          </div>
+
+          ${(s.attack_chain && s.attack_chain.length > 0) ? `
           <p class="card-text">
-            <strong>Attack Chain:</strong> ${s.attack_chain.join(" → ")}
+            <strong>Attack Chain:</strong><br>
+            <span style="font-family: monospace; color: #ef4444; font-weight: bold;">
+              ${s.attack_chain.join(" <span style='color: #64748b;'>→</span> ")}
+            </span>
+          </p>` : `
+          <p class="card-text">
+            <strong>Attack Chain:</strong> <span style="color: #94a3b8; font-style: italic;">Not Available</span>
+            <br>
+            <small style="color: #64748b;">(Reason: No verified public exploit exists; exploitation path cannot be determined.)</small>
           </p>
-          ${s.confidence
-        ? `<p class="card-text"><strong>Confidence:</strong> ${s.confidence}</p>`
-        : ""}
+          `}
+          
+          <p class="card-text" style="font-style: italic; color: #94a3b8; margin-top: 10px;">
+             "${s.explanation}"
+          </p>
+
+          ${refHTML}
+          
+          <div style="margin-top: 10px; font-size: 0.85rem; color: #64748b;">
+             MITRE: ${s.mitre_technique}
+          </div>
         </div>
-      `).join("")}
-    ` : "";
+      `;
+    }).join("")}
+    ` : "<p>No exploitation strategies generated (System appears secure or no known CVEs).</p>";
 
     /* ===============================
        FINAL RENDER
@@ -305,10 +365,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         <strong>Total Candidates:</strong> ${r.total_candidates || 0}
       </div>
 
-      <h3>Clusters (Model 1)</h3>
+      <h3>Clusters</h3>
       ${clustersHTML}
 
-      <h3>Examples (Model 1)</h3>
+      <h3>Examples</h3>
       <ul>${examplesHTML}</ul>
 
       ${model2HTML}

@@ -4,11 +4,6 @@ Model 3: Technology Fingerprinting & Vulnerability Detection
 Input: WhatWeb output, Nmap service detection, HTTP headers, banners
 Output: Detected technologies, CVE mappings, vulnerability labels
 """
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
-from sklearn.linear_model import LogisticRegression
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.preprocessing import StandardScaler
 import numpy as np
 import requests
 import json
@@ -39,6 +34,9 @@ def extract_tfidf_features(technologies):
     Extract TF-IDF features from technology fingerprints.
     Returns vectorized features and vectorizer.
     """
+    # Lazy import to avoid slow startup
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    
     if not technologies:
         return None, None
     
@@ -265,6 +263,8 @@ def run_technology_fingerprinting(urls_data):
             similarity_score = 0.0
             if tech_vector is not None and tfidf_features is not None:
                 try:
+                    # Lazy import to avoid slow startup
+                    from sklearn.metrics.pairwise import cosine_similarity
                     similarities = cosine_similarity(tech_vector, tfidf_features)
                     similarity_score = float(np.max(similarities)) if similarities.size > 0 else 0.0
                 except:

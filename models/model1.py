@@ -1,7 +1,3 @@
-from sklearn.cluster import KMeans
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.svm import SVC
-from sklearn.preprocessing import StandardScaler
 import numpy as np
 import socket
 import requests
@@ -79,6 +75,11 @@ def classify_subdomains_supervised(subdomains, resolved, ports_results, live_htt
     Use Random Forest and SVM (supervised learning) to classify subdomains.
     This is a supervised approach that learns from features.
     """
+    # Lazy import to avoid slow startup
+    from sklearn.ensemble import RandomForestClassifier
+    from sklearn.svm import SVC
+    from sklearn.preprocessing import StandardScaler
+    
     if not subdomains or len(subdomains) < 2:
         return {}
     
@@ -163,6 +164,9 @@ def classify_subdomains_supervised(subdomains, resolved, ports_results, live_htt
 
 def cluster_subdomains(subdomains):
     """Cluster subdomains based on their structure (unsupervised learning with KMeans)."""
+    # Lazy import to avoid slow startup
+    from sklearn.cluster import KMeans
+    
     if not subdomains:
         return []
 

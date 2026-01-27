@@ -43,10 +43,17 @@ def sanitize_for_mongo(data):
     return data
 
 # ====================================================
-# MODEL 4 INITIALIZATION (ONCE)
+# MODEL 4 LAZY INITIALIZATION (ONLY WHEN NEEDED)
 # ====================================================
-model4 = HTTPAnomalyModel()
-model4.load()
+_model4_instance = None
+
+def get_model4():
+    """Lazy initialization of Model 4 to avoid slow startup"""
+    global _model4_instance
+    if _model4_instance is None:
+        _model4_instance = HTTPAnomalyModel()
+        _model4_instance.load()
+    return _model4_instance
 
 
 @scan_bp.route("/add_domain", methods=["POST"])
@@ -121,7 +128,7 @@ def scan_domain():
                     # Merge features
                     features.update(traffic_features)
 
-                anomaly_result = model4.predict(features)
+                anomaly_result = get_model4().predict(features)
 
                 anomaly_doc = {
                     "domain": domain,
@@ -221,34 +228,59 @@ def scan_domain():
                 print(f"Model 3 error: {e}")
 
         # ====================================================
-        # MODEL 5: EXPLOITATION STRATEGY
+        # MODEL 5: EXPLOITATION STRATEGY (Sequential: requires Model 3 results)
         # ====================================================
-        try:
-            port_scan_results = []
-            for sub in result.get("raw_docs", []):
-                for port in sub.get("open_ports", []):
-                    port_scan_results.append({
-                        "subdomain": sub["subdomain"],
-                        "port": port["port"],
-                        "service": port["service"]
-                    })
+        model5_output = {
+            "model": "Model 5 - Exploitation Strategy",
+            "strategy_count": 0,
+            "strategies": []
+        }
+        
+        # Model 5 requires Model 3 technology fingerprinting results
+        # Only run if technology scan was performed and has results
+        if include_tech_scan and tech_results:
+            try:
+                port_scan_results = []
+                for sub in result.get("raw_docs", []):
+                    for port in sub.get("open_ports", []):
+                        port_scan_results.append({
+                            "subdomain": sub["subdomain"],
+                            "port": port["port"],
+                            "service": port["service"]
+                        })
 
-            technology_results_for_model5 = []
+                technology_results_for_model5 = []
 
-            for tech_result in tech_results:
-                for tech in tech_result.get("technologies", []):
-                    technology_results_for_model5.append(tech)
+                for tech_result in tech_results:
+                    for tech in tech_result.get("technologies", []):
+                        # Only include technologies with CVEs (real data requirement)
+                        if tech.get("cves") and len(tech.get("cves", [])) > 0:
+                            technology_results_for_model5.append(tech)
 
-            http_anomaly_result_for_model5 = http_anomaly_results[0]["model4_result"] if http_anomaly_results else {}
-            
-            model5_output = run_model_5(
-                port_scan_results=port_scan_results,
-                technology_results=technology_results_for_model5,
-                http_anomaly_result=http_anomaly_result_for_model5
-            )
-        except Exception as e:
-            print(f"[Model5] Error generating strategies: {e}")
-            model5_output = {"strategies": []}
+                http_anomaly_result_for_model5 = http_anomaly_results[0]["model4_result"] if http_anomaly_results else {}
+                
+                # Only run Model 5 if we have technologies with CVEs
+                if technology_results_for_model5:
+                    print(f"[Model 5] Running exploitation strategy engine with {len(technology_results_for_model5)} technologies")
+                    model5_output = run_model_5(
+                        port_scan_results=port_scan_results,
+                        technology_results=technology_results_for_model5,
+                        http_anomaly_result=http_anomaly_result_for_model5
+                    )
+                else:
+                    print("[Model 5] No technologies with CVEs found - skipping exploitation strategy generation")
+            except Exception as e:
+                print(f"[Model5] Error generating strategies: {e}")
+                import traceback
+                traceback.print_exc()
+                model5_output = {
+                    "model": "Model 5 - Exploitation Strategy",
+                    "strategy_count": 0,
+                    "strategies": [],
+                    "error": str(e)
+                }
+        else:
+            print("[Model 5] Skipping - technology scan not performed or no results available")
 
         # ====================================================
         # ✅ FINAL REPORT (SNAPSHOT)
