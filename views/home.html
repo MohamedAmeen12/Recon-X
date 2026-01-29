@@ -88,11 +88,10 @@
             <span class="option-icon">👤</span>
             <span class="option-text">Change Username</span>
           </button>
-          <button id="changePasswordOptionBtn" class="settings-option-btn disabled" disabled>
-            <span class="option-icon">🔑</span>
-            <span class="option-text">Change Password</span>
-            <span class="option-badge">Coming Soon</span>
-          </button>
+            <button id="changePasswordOptionBtn" class="settings-option-btn">
+              <span class="option-icon">🔑</span>
+              <span class="option-text">Change Password</span>
+            </button>
         </div>
       </div>
       <div class="modal-footer">
@@ -100,6 +99,30 @@
       </div>
     </div>
   </div>
+
+    <!-- CHANGE PASSWORD MODAL -->
+    <div id="changePasswordModal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>Change Password</h2>
+          <button class="modal-close" id="closeChangePasswordModal">&times;</button>
+        </div>
+        <div class="modal-body">
+          <label for="currentPasswordInput">Current Password:</label>
+          <input type="password" id="currentPasswordInput" placeholder="Enter current password" />
+          <label for="newPasswordInput">New Password:</label>
+          <input type="password" id="newPasswordInput" placeholder="Enter new password (min 8 chars)" />
+          <label for="confirmPasswordInput">Confirm New Password:</label>
+          <input type="password" id="confirmPasswordInput" placeholder="Confirm new password" />
+          <p id="changePasswordError" class="error-message"></p>
+          <p id="changePasswordSuccess" class="success-message"></p>
+        </div>
+        <div class="modal-footer">
+          <button id="changePasswordCancelBtn" class="btn btn-secondary">Cancel</button>
+          <button id="changePasswordSubmitBtn" class="btn btn-primary">Change Password</button>
+        </div>
+      </div>
+    </div>
 
   <!-- MAIN CONTENT -->
   <main class="content">
