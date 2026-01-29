@@ -162,8 +162,10 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 
   changePasswordOptionBtn.addEventListener("click", function () {
-    // Placeholder for future implementation
-    alert("Change Password feature coming soon!");
+    // Open change password modal (account already verified)
+    accountSettingsModal.classList.remove("show");
+    changePasswordModal.classList.add("show");
+    document.getElementById("currentPasswordInput").focus();
   });
 
   // ===== Event Listeners: Change Username Modal =====
@@ -266,5 +268,96 @@ document.addEventListener("DOMContentLoaded", function () {
     if (e.key === "Enter") {
       changeUsernameSubmitBtn.click();
     }
+  });
+
+  // ===== Event Listeners: Change Password Modal =====
+  const closeChangePasswordModal = document.getElementById("closeChangePasswordModal");
+  const changePasswordModal = document.getElementById("changePasswordModal");
+  const currentPasswordInput = document.getElementById("currentPasswordInput");
+  const newPasswordInput = document.getElementById("newPasswordInput");
+  const confirmPasswordInput = document.getElementById("confirmPasswordInput");
+  const changePasswordError = document.getElementById("changePasswordError");
+  const changePasswordSuccess = document.getElementById("changePasswordSuccess");
+  const changePasswordSubmitBtn = document.getElementById("changePasswordSubmitBtn");
+  const changePasswordCancelBtn = document.getElementById("changePasswordCancelBtn");
+
+  function clearPasswordMessages() {
+    changePasswordError.classList.remove("show");
+    changePasswordSuccess.classList.remove("show");
+    changePasswordError.textContent = "";
+    changePasswordSuccess.textContent = "";
+  }
+
+  closeChangePasswordModal.addEventListener("click", function () {
+    changePasswordModal.classList.remove("show");
+    clearPasswordMessages();
+  });
+
+  changePasswordCancelBtn.addEventListener("click", function () {
+    changePasswordModal.classList.remove("show");
+    clearPasswordMessages();
+  });
+
+  changePasswordModal.addEventListener("click", function (e) {
+    if (e.target === changePasswordModal) {
+      changePasswordModal.classList.remove("show");
+      clearPasswordMessages();
+    }
+  });
+
+  function validateNewPassword(curr, nw, conf) {
+    if (!curr) return "Current password required";
+    if (!nw || nw.length < 8) return "New password must be at least 8 characters";
+    if (nw !== conf) return "Password confirmation does not match";
+    if (nw === curr) return "New password must be different from current password";
+    return null;
+  }
+
+  changePasswordSubmitBtn.addEventListener("click", function () {
+    clearPasswordMessages();
+    const curr = currentPasswordInput.value;
+    const nw = newPasswordInput.value;
+    const conf = confirmPasswordInput.value;
+
+    const vErr = validateNewPassword(curr, nw, conf);
+    if (vErr) {
+      changePasswordError.textContent = vErr;
+      changePasswordError.classList.add("show");
+      return;
+    }
+
+    changePasswordSubmitBtn.disabled = true;
+    changePasswordSubmitBtn.textContent = "Changing...";
+
+    fetch("/change-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ current_password: curr, new_password: nw })
+    })
+      .then(res => res.json())
+      .then(data => {
+        changePasswordSubmitBtn.disabled = false;
+        changePasswordSubmitBtn.textContent = "Change Password";
+        if (data.success) {
+          changePasswordSuccess.textContent = data.message || "Password changed successfully";
+          changePasswordSuccess.classList.add("show");
+          currentPasswordInput.value = newPasswordInput.value = confirmPasswordInput.value = "";
+          setTimeout(() => {
+            changePasswordModal.classList.remove("show");
+            clearPasswordMessages();
+          }, 1500);
+        } else {
+          changePasswordError.textContent = data.error || "Failed to change password";
+          changePasswordError.classList.add("show");
+        }
+      })
+      .catch(err => {
+        changePasswordSubmitBtn.disabled = false;
+        changePasswordSubmitBtn.textContent = "Change Password";
+        changePasswordError.textContent = "Network error. Please try again.";
+        changePasswordError.classList.add("show");
+        console.error(err);
+      });
   });
 });
