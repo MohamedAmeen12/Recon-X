@@ -27,10 +27,79 @@
     <a href="#contacts" class="sidebar-item">Contact</a>
 
     <div class="sidebar-footer">
+      <div id="usernamDisplay" class="sidebar-username"></div>
+      <button id="editInfoBtn" class="sidebar-item">⚙️ Edit Info</button>
       <a href="javascript:void(0)" onclick="logout()" class="sidebar-item logout">Logout</a>
     </div>
   </aside>
   <button id="darkModeToggle">🌙</button>
+
+  <!-- CHANGE USERNAME MODAL -->
+  <div id="changeUsernameModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Change Username</h2>
+        <button class="modal-close" id="closeModalBtn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <label for="newUsernameInput">New Username:</label>
+        <input type="text" id="newUsernameInput" placeholder="Enter new username" />
+        <p id="usernameError" class="error-message"></p>
+        <p id="usernameSuccess" class="success-message"></p>
+      </div>
+      <div class="modal-footer">
+        <button id="changeUsernameCancelBtn" class="btn btn-secondary">Cancel</button>
+        <button id="changeUsernameSubmitBtn" class="btn btn-primary">Change Username</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- VERIFY PASSWORD MODAL -->
+  <div id="verifyPasswordModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Verify Password</h2>
+        <button class="modal-close" id="closeVerifyPasswordModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-description">Enter your current password to proceed with account settings</p>
+        <label for="verifyPasswordInput">Password:</label>
+        <input type="password" id="verifyPasswordInput" placeholder="Enter your password" />
+        <p id="verifyPasswordError" class="error-message"></p>
+      </div>
+      <div class="modal-footer">
+        <button id="verifyPasswordCancelBtn" class="btn btn-secondary">Cancel</button>
+        <button id="verifyPasswordSubmitBtn" class="btn btn-primary">Verify</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ACCOUNT SETTINGS MODAL -->
+  <div id="accountSettingsModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Account Settings</h2>
+        <button class="modal-close" id="closeAccountSettingsModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-description">Select what you would like to change</p>
+        <div class="settings-options">
+          <button id="changeUsernameOptionBtn" class="settings-option-btn">
+            <span class="option-icon">👤</span>
+            <span class="option-text">Change Username</span>
+          </button>
+          <button id="changePasswordOptionBtn" class="settings-option-btn disabled" disabled>
+            <span class="option-icon">🔑</span>
+            <span class="option-text">Change Password</span>
+            <span class="option-badge">Coming Soon</span>
+          </button>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="accountSettingsCancelBtn" class="btn btn-secondary">Close</button>
+      </div>
+    </div>
+  </div>
 
   <!-- MAIN CONTENT -->
   <main class="content">
@@ -98,6 +167,7 @@
 
   <!-- COUNTER ANIMATION SCRIPT -->
   <script src="/static/js/counter.js"></script>
+  <script src="/static/js/change_username.js"></script>
   <script src="/static/js/darkmode.js"></script>
   <script src="/static/js/auth.js"></script>
 </body>
