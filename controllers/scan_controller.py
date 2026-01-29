@@ -11,6 +11,7 @@ from bson.objectid import ObjectId
 import time
 import datetime
 import numpy as np
+from middlewares.auth_middleware import login_required
 
 from models.model1 import run_subdomain_discovery
 from models.model3 import run_technology_fingerprinting_for_subdomains
@@ -57,6 +58,7 @@ def get_model4():
 
 
 @scan_bp.route("/add_domain", methods=["POST"])
+@login_required
 def add_domain():
     from config.database import domains_collection
     data = request.get_json()
@@ -70,10 +72,9 @@ def add_domain():
 
 
 @scan_bp.route("/scan_domain", methods=["POST"])
+@login_required
 def scan_domain():
     try:
-        if "user_id" not in session:
-            return jsonify({"error": "Unauthorized. Please login to scan."}), 401
 
         data = request.get_json()
         domain = data.get("domain", "").strip()
@@ -324,10 +325,8 @@ def scan_domain():
 
 
 @scan_bp.route("/get_history", methods=["GET"])
+@login_required
 def get_history():
-    if "user_id" not in session:
-        return jsonify({"error": "Unauthorized"}), 401
-    
     user_id = session["user_id"]
     
     try:

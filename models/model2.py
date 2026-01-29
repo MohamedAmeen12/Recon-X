@@ -1,8 +1,11 @@
 """
-Model 2: Port Scanning & Service Detection
+Model 2: Port Scanning & Service Detection (Deterministic)
 
 Input: IP addresses and subdomain pairs
 Output: Open ports, services, and port analysis results
+
+NOTE: Service identification is DETERMINISTIC using Nmap and banner grabbing.
+ML is ONLY used for optional "Risk Scoring" post-processing, NOT for identification.
 """
 import nmap
 import socket

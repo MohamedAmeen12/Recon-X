@@ -4,6 +4,7 @@ Report Controller - Handles report retrieval and technology verification
 import datetime
 import requests
 from flask import request, jsonify, Blueprint, session
+from middlewares.auth_middleware import login_required
 from bson.objectid import ObjectId
 from config.database import (
     reports_collection, technologies_collection, vulnerabilities_collection
@@ -20,6 +21,7 @@ report_bp = Blueprint('report', __name__)
 
 
 @report_bp.route("/get_technologies", methods=["GET"])
+@login_required
 def get_technologies():
     domain = request.args.get("domain", "").strip()
     
@@ -50,14 +52,11 @@ def get_technologies():
 
 
 @report_bp.route("/get_report", methods=["GET"])
+@login_required
 def get_report():
     domain = request.args.get("domain", "").strip()
     report_id = request.args.get("report_id", "").strip()
     
-    # 1. AUTH CHECK
-    if "user_id" not in session:
-        return jsonify({"error": "Unauthorized"}), 401
-        
     current_user_id = session["user_id"]
     is_admin = session.get("role") == "admin"
 
@@ -214,6 +213,7 @@ def get_report():
 
 
 @report_bp.route("/verify_headers", methods=["GET"])
+@login_required
 def verify_headers():
     url = request.args.get("url", "").strip()
     

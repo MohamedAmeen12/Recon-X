@@ -11,7 +11,7 @@ import numpy as np
 
 
 class HTTPAnomalyModel:
-    def __init__(self, model_path="models/model4_iforest.pkl"):
+    def __init__(self, model_path="models/artifacts/model4/model4_iforest.pkl"):
         # Lazy import to avoid slow startup
         from sklearn.ensemble import IsolationForest
         from sklearn.preprocessing import StandardScaler

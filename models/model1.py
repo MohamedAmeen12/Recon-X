@@ -1,3 +1,12 @@
+"""
+Model 1: Subdomain & Asset Discovery (Rule-Based + Unsupervised Clustering)
+
+Input: Domain name
+Output: Discovered subdomains, clustering analysis, and liveness status.
+
+NOTE: This model is strictly Rule-Based (Discovery) and Unsupervised (Clustering).
+It does NOT perform supervised classification or risk scoring.
+"""
 import numpy as np
 import socket
 import requests
@@ -55,113 +64,6 @@ def check_live_http(subdomains, max_workers=50):
     return live
 
 
-def extract_features(subdomain, resolved_ip=None, ports=None, live_http=False):
-    """Extract features from subdomain for ML models."""
-    parts = subdomain.split('.')
-    features = [
-        len(subdomain),                    # Length of subdomain
-        len(parts),                        # Number of parts
-        len(parts[0]) if parts else 0,     # Length of first part
-        subdomain.count('-'),              # Number of hyphens
-        subdomain.count('_'),              # Number of underscores
-        1 if resolved_ip else 0,          # Resolvable
-        1 if live_http else 0,             # Live HTTP
-        len(ports) if ports else 0,        # Number of open ports
-    ]
-    return features
-
-def classify_subdomains_supervised(subdomains, resolved, ports_results, live_http_list):
-    """
-    Use Random Forest and SVM (supervised learning) to classify subdomains.
-    This is a supervised approach that learns from features.
-    """
-    # Lazy import to avoid slow startup
-    from sklearn.ensemble import RandomForestClassifier
-    from sklearn.svm import SVC
-    from sklearn.preprocessing import StandardScaler
-    
-    if not subdomains or len(subdomains) < 2:
-        return {}
-    
-    try:
-        # Extract features for each subdomain
-        X = []
-        y = []  # Labels: 1 = suspicious/interesting, 0 = normal
-        
-        for sub in subdomains:
-            features = extract_features(
-                sub,
-                resolved.get(sub),
-                ports_results.get(sub, []),
-                sub in live_http_list
-            )
-            X.append(features)
-            
-            # Create labels based on heuristics (suspicious patterns)
-            # This simulates supervised learning - in real scenario, you'd have labeled data
-            is_suspicious = (
-                len(sub) > 30 or  # Very long subdomain
-                sub.count('-') > 3 or  # Many hyphens
-                len(ports_results.get(sub, [])) > 5 or  # Many open ports
-                (sub not in live_http_list and resolved.get(sub))  # Resolvable but not live
-            )
-            y.append(1 if is_suspicious else 0)
-        
-        X = np.array(X)
-        y = np.array(y)
-        
-        # Check if we have both classes (at least one 0 and one 1)
-        unique_labels = np.unique(y)
-        if len(unique_labels) < 2:
-            # If all labels are the same, return default values
-            results = {}
-            for sub in subdomains:
-                results[sub] = {
-                    "rf_prediction": int(y[0]) if len(y) > 0 else 0,
-                    "rf_confidence": 0.5,
-                    "svm_prediction": int(y[0]) if len(y) > 0 else 0,
-                    "svm_confidence": 0.5,
-                    "ensemble_confidence": 0.5,
-                    "is_suspicious": bool(y[0]) if len(y) > 0 else False
-                }
-            return results
-        
-        # Standardize features
-        scaler = StandardScaler()
-        X_scaled = scaler.fit_transform(X)
-        
-        # Train Random Forest
-        rf_model = RandomForestClassifier(n_estimators=100, random_state=42, max_depth=10)
-        rf_model.fit(X_scaled, y)
-        rf_predictions = rf_model.predict(X_scaled)
-        rf_proba = rf_model.predict_proba(X_scaled)[:, 1]  # Probability of being suspicious
-        
-        # Train SVM
-        svm_model = SVC(kernel='rbf', probability=True, random_state=42)
-        svm_model.fit(X_scaled, y)
-        svm_predictions = svm_model.predict(X_scaled)
-        svm_proba = svm_model.predict_proba(X_scaled)[:, 1]  # Probability of being suspicious
-        
-        # Combine predictions (ensemble approach)
-        results = {}
-        for i, sub in enumerate(subdomains):
-            # Average probability from both models
-            avg_proba = (rf_proba[i] + svm_proba[i]) / 2
-            results[sub] = {
-                "rf_prediction": int(rf_predictions[i]),
-                "rf_confidence": float(rf_proba[i]),
-                "svm_prediction": int(svm_predictions[i]),
-                "svm_confidence": float(svm_proba[i]),
-                "ensemble_confidence": float(avg_proba),
-                "is_suspicious": avg_proba > 0.5
-            }
-        
-        return results
-    except Exception as e:
-        # If ML fails, return empty dict (graceful degradation)
-        print(f"Warning: ML classification failed: {e}")
-        return {}
-
 def cluster_subdomains(subdomains):
     """Cluster subdomains based on their structure (unsupervised learning with KMeans)."""
     # Lazy import to avoid slow startup
@@ -205,7 +107,7 @@ def _check_single_dead(subdomain):
     try:
         ip = socket.gethostbyname(subdomain)
     except socket.gaierror:
-        return (subdomain, True)  # Unresolved → dead
+        return (subdomain, True)  # Unresolved -> dead
 
     # Try HTTP and HTTPS
     urls = [f"http://{subdomain}", f"https://{subdomain}"]
@@ -217,7 +119,7 @@ def _check_single_dead(subdomain):
         except:
             pass
 
-    return (subdomain, True)  # No valid response → dead
+    return (subdomain, True)  # No valid response -> dead
 
 def check_dead_subdomains(subdomains, max_workers=50):
     """Check which subdomains are dead in parallel."""
@@ -235,7 +137,10 @@ def check_dead_subdomains(subdomains, max_workers=50):
 
 
 def run_subdomain_discovery(domain):
-    """Main orchestrator function for subdomain discovery with parallel processing."""
+    """
+    Main orchestrator function for Model 1: Subdomain Discovery.
+    Performs deterministic discovery and unsupervised clustering.
+    """
     start_time = time.time()
 
     # Step 1: Start sublist3r in background (non-blocking - returns immediately!)
@@ -276,20 +181,11 @@ def run_subdomain_discovery(domain):
         live_http = live_http_future.result()
         dead_subdomains = dead_future.result()
 
-    # Step 5: Scan ports in parallel for all resolved IPs
+    # Step 5: Scan ports in parallel for all resolved IPs (Data collection only)
     ip_subdomain_pairs = [(sub, ip) for sub, ip in resolved.items()]
     ports_results = scan_ports_parallel(ip_subdomain_pairs)
 
-    # Step 6: Supervised learning - Classify subdomains using Random Forest and SVM
-    try:
-        ml_classifications = classify_subdomains_supervised(
-            subdomains, resolved, ports_results, live_http
-        )
-    except Exception as e:
-        print(f"Warning: ML classification failed: {e}")
-        ml_classifications = {}
-    
-    # Step 7: Cluster subdomains (unsupervised learning with KMeans)
+    # Step 6: Cluster subdomains (unsupervised learning with KMeans)
     clusters = cluster_subdomains(subdomains)
 
     for cluster in clusters:
@@ -307,7 +203,6 @@ def run_subdomain_discovery(domain):
     # Create raw docs for MongoDB storage
     raw_docs = []
     for sub in subdomains:
-        ml_info = ml_classifications.get(sub, {})
         sub_ip = resolved.get(sub)
         # Get ports for this subdomain (ports are scanned per IP, stored per subdomain)
         sub_ports = ports_results.get(sub, [])
@@ -319,13 +214,6 @@ def run_subdomain_discovery(domain):
             "live_http": sub in live_http,
             "cluster_id": None,  # Will be set based on clustering
             "status": "dead" if sub in dead_subdomains else "alive",
-            # Supervised learning predictions
-            "rf_prediction": ml_info.get("rf_prediction", 0),
-            "rf_confidence": ml_info.get("rf_confidence", 0.0),
-            "svm_prediction": ml_info.get("svm_prediction", 0),
-            "svm_confidence": ml_info.get("svm_confidence", 0.0),
-            "ensemble_confidence": ml_info.get("ensemble_confidence", 0.0),
-            "is_suspicious": ml_info.get("is_suspicious", False)
         }
         raw_docs.append(doc)
 
@@ -344,8 +232,7 @@ def run_subdomain_discovery(domain):
         "clusters": clusters,
         "examples": subdomains[:10],  # Show first 10 examples
         "raw_docs": raw_docs,  # For MongoDB storage
-        "ports_summary": ports_results,
-        "ml_classifications": ml_classifications  # Supervised learning results
+        "ports_summary": ports_results
     }
 
     return result
