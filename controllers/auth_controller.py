@@ -262,3 +262,46 @@ def change_username():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
+
+@auth_bp.route('/change-password', methods=['POST'])
+def change_password():
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 401
+
+    data = request.get_json() or {}
+    current_password = data.get('current_password')
+    new_password = data.get('new_password')
+
+    if not current_password or not new_password:
+        return jsonify({'success': False, 'error': 'Both current and new passwords are required'}), 400
+
+    if len(new_password) < 8:
+        return jsonify({'success': False, 'error': 'New password must be at least 8 characters'}), 400
+
+    user_id = session.get('user_id')
+
+    # Admin cannot change password via this endpoint
+    if user_id == 'admin':
+        return jsonify({'success': False, 'error': 'Admin password cannot be changed here'}), 403
+
+    try:
+        from bson.objectid import ObjectId
+        query_id = ObjectId(user_id) if isinstance(user_id, str) else user_id
+        user = users_collection.find_one({'_id': query_id})
+    except Exception:
+        user = None
+
+    if not user:
+        return jsonify({'success': False, 'error': 'User not found'}), 404
+
+    stored_password = user.get('password', '')
+    # Support legacy plain-text or hashed passwords
+    if not (stored_password == current_password or check_password_hash(stored_password, current_password)):
+        return jsonify({'success': False, 'error': 'Current password is incorrect'}), 403
+
+    # All checks passed — update password hash
+    new_hash = generate_password_hash(new_password)
+    users_collection.update_one({'_id': query_id}, {'$set': {'password': new_hash}})
+
+    return jsonify({'success': True, 'message': 'Password changed successfully'})
+
