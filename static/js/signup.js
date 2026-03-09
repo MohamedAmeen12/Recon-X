@@ -3,9 +3,18 @@ document.getElementById("signupForm").addEventListener("submit", async function 
 
   const name = document.getElementById("name").value.trim();
   const email = document.getElementById("email").value.trim();
-  const company = document.getElementById("company").value.trim();
+  const domainsRaw = document.getElementById("domains").value.trim();
   const password = document.getElementById("password").value;
   const confirmPassword = document.getElementById("confirmPassword").value;
+
+  // Basic client-side domain parsing and validation
+  const parts = domainsRaw.split(/[\n,]+/).map((p) => p.trim().toLowerCase()).filter(Boolean);
+  const uniqueDomains = Array.from(new Set(parts));
+
+  if (!uniqueDomains.length) {
+    alert("Please enter at least one domain to scan.");
+    return;
+  }
 
   if (password !== confirmPassword) {
     alert("Passwords do not match!");
@@ -13,13 +22,14 @@ document.getElementById("signupForm").addEventListener("submit", async function 
   }
 
   try {
-    const response = await fetch("http://127.0.0.1:5000/signup", {
+    const response = await fetch("/signup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         username: name,
         email: email,
-        password: password
+        password: password,
+        domains: uniqueDomains,
       })
     });
 

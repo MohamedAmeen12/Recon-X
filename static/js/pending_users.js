@@ -10,7 +10,7 @@ async function fetchPendingUsers() {
     table.innerHTML = "";
 
     if (!data.users || data.users.length === 0) {
-      table.innerHTML = `<tr><td colspan="5">No pending users</td></tr>`;
+      table.innerHTML = `<tr><td colspan="4">No pending users</td></tr>`;
       return;
     }
 
@@ -19,7 +19,6 @@ async function fetchPendingUsers() {
       row.innerHTML = `
         <td>${user.username}</td>
         <td>${user.email}</td>
-        <td>${user.company || "N/A"}</td>
         <td>${user.created_at ? new Date(user.created_at).toLocaleString() : "N/A"}</td>
         <td>
           <button class="action-btn approve-btn" onclick="approveUser('${user.email}', 'approve')">Approve</button>

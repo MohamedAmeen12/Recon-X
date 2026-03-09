@@ -18,7 +18,22 @@
     <form id="signupForm">
       <input type="text" id="name" placeholder="Full Name" required />
       <input type="email" id="email" placeholder="Email" required />
-      <input type="text" id="company" placeholder="Company Name" required />
+      
+      <div class="form-group">
+        <label for="domains" class="field-label">Domains to Scan</label>
+        <textarea
+          id="domains"
+          class="text-input"
+          rows="3"
+          placeholder="example.com&#10;sub.example.com"
+          required
+        ></textarea>
+        <p class="field-hint">
+          Enter one or more domains you are authorized to scan. You can separate them by
+          new lines or commas. Only these domains will be available for scanning.
+        </p>
+      </div>
+
       <input type="password" id="password" placeholder="Password" required />
       <input type="password" id="confirmPassword" placeholder="Confirm Password" required />
       <button type="submit">Sign Up</button>

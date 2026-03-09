@@ -28,23 +28,32 @@
   <!-- MAIN CONTENT -->
   <div class="content-table">
 
-    
+      <div class="user-management-row">
+        <!-- USER TABLE -->
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Username</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Created At</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="userTableBody"></tbody>
+          </table>
+        </div>
 
-      <!-- USER TABLE -->
-      <div class="table-container">
-        <table>
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Username</th>
-              <th>Email</th>
-              <th>Company</th>
-              <th>Created At</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody id="userTableBody"></tbody>
-        </table>
+        <!-- USER DOMAIN DETAILS -->
+        <div class="add-user" id="userDomainsCard">
+          <h2>User Domains</h2>
+          <p id="userDomainsHeader" style="margin-bottom: 10px; font-size: 0.95rem; color: #e5e5e5;">
+            Select a user and click "View Domains" to see their allowed and scanned domains.
+          </p>
+          <div id="userDomainsContent" style="text-align: left; font-size: 0.9rem;"></div>
+        </div>
       </div>
 
       <!-- ADD USER FORM -->
@@ -53,7 +62,6 @@
         <form id="addUserForm" onsubmit="addUser(event)">
           <input id="username" placeholder="Username" required />
           <input id="email" type="email" placeholder="Email" required />
-          <input id="company" placeholder="Company" />
           <input id="password" type="password" placeholder="Password" required />
           <button type="submit">Add User</button>
         </form>

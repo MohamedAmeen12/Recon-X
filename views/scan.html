@@ -26,12 +26,14 @@
 
   <!-- Main Content -->
   <main class="scan-container">
-    <h1>Enter a Domain to Scan</h1>
-    <p class="subtext">Insert the domain you want ReconX to analyze.<br>
+    <h1>Select a Domain to Scan</h1>
+    <p class="subtext">Choose one of the domains registered to your account.<br>
       Our AI engine will perform advanced reconnaissance.</p>
 
     <form class="scan-form">
-      <input type="text" id="domain-input" placeholder="e.g., example.com" required>
+      <select id="domain-select" required>
+        <option value="">Loading your domains...</option>
+      </select>
       <button type="submit" id="scan-btn">Start Scan</button>
     </form>
 

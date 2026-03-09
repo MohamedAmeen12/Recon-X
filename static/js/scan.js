@@ -1,8 +1,9 @@
 document.addEventListener("DOMContentLoaded", () => {
 
   const form = document.querySelector(".scan-form");
-  const domainInput = document.getElementById("domain-input");
+  const domainSelect = document.getElementById("domain-select");
   const submitBtn = document.getElementById("scan-btn");
+  let allowedDomains = [];
 
   // Message container
   const resultsContainer = document.createElement("div");
@@ -22,6 +23,44 @@ document.addEventListener("DOMContentLoaded", () => {
     resultsContainer.innerHTML = `
       <p style="color:${isError ? "darkred" : "black"}; margin:0 0 12px 0;">${msg}</p>
     `;
+  }
+
+  async function loadAllowedDomains() {
+    try {
+      const resp = await fetch("/user/profile");
+      if (!resp.ok) {
+        throw new Error("Unable to load user profile.");
+      }
+      const data = await resp.json();
+      allowedDomains = (data.allowed_domains || []).map((d) => String(d).toLowerCase());
+
+      if (!allowedDomains.length) {
+        domainSelect.innerHTML = '<option value="">No registered domains available</option>';
+        domainSelect.disabled = true;
+        submitBtn.disabled = true;
+        showMessage(
+          "You do not have any registered domains. Please contact an administrator to update your account.",
+          true
+        );
+        return;
+      }
+
+      const optionsHtml =
+        '<option value="">Select a domain to scan</option>' +
+        allowedDomains.map((d) => `<option value="${d}">${d}</option>`).join("");
+      domainSelect.innerHTML = optionsHtml;
+      domainSelect.disabled = false;
+      submitBtn.disabled = false;
+    } catch (err) {
+      console.error("Failed to load allowed domains:", err);
+      domainSelect.innerHTML = '<option value="">Error loading domains</option>';
+      domainSelect.disabled = true;
+      submitBtn.disabled = true;
+      showMessage(
+        "Could not load your registered domains. Please refresh the page or try again later.",
+        true
+      );
+    }
   }
 
   async function postJSON(url, body) {
@@ -51,9 +90,18 @@ document.addEventListener("DOMContentLoaded", () => {
     ev.preventDefault();
     resultsContainer.style.display = "none";
 
-    const domain = domainInput.value.trim();
+    const domain = domainSelect.value.trim().toLowerCase();
     if (!domain) {
-      showMessage("Please enter a domain (e.g., example.com).", true);
+      showMessage("Please select a domain to scan.", true);
+      return;
+    }
+
+    // Client-side enforcement: only allow registered domains
+    if (!allowedDomains.includes(domain)) {
+      showMessage(
+        "You are only allowed to scan the domains registered in your account.",
+        true
+      );
       return;
     }
 
@@ -63,7 +111,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     try {
 
-      const resp = await postJSON("http://localhost:5000/scan_domain", {
+      const resp = await postJSON("/scan_domain", {
         domain: domain,
         include_tech_scan: true
       });
@@ -96,6 +144,9 @@ document.addEventListener("DOMContentLoaded", () => {
       submitBtn.textContent = origText;
     }
   });
+
+  // Load the allowed domains for the logged-in user
+  loadAllowedDomains();
 
 });
 

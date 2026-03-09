@@ -155,7 +155,7 @@ body {
 .content-table {
   margin-left: 240px;
   min-height: 100vh;
-  padding: 60px 90px;
+  padding: 40px 70px;
 }
 
 @media (max-width: 1024px) {
@@ -172,6 +172,80 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.user-management-row {
+  display: flex;
+  gap: 28px;
+  align-items: flex-start;
+  margin: 20px auto 35px;
+  max-width: 1320px;
+}
+
+.user-management-row .table-container {
+  flex: 1 1 0;
+}
+
+#userDomainsCard {
+  flex: 0 0 360px;
+  margin: 0;
+  padding: 22px 22px;
+  text-align: left;
+  position: sticky;
+  top: 40px;
+}
+
+#userDomainsCard h2 {
+  font-size: 1.35rem;
+  margin-bottom: 6px;
+  letter-spacing: 0.3px;
+}
+
+#userDomainsContent {
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.domain-section-title {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #a5a5a5;
+  margin: 14px 0 6px;
+}
+
+.domain-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.domain-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 0.8rem;
+  color: #f5f5f5;
+}
+
+.domain-chip.badge-empty {
+  background: rgba(239, 68, 68, 0.08);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #fecaca;
+}
+
+@media (max-width: 1200px) {
+  .user-management-row {
+    flex-direction: column;
+  }
+
+  #userDomainsCard {
+    width: 100%;
+    margin-top: 20px;
+  }
 }
 
 .welcome-title {

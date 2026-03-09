@@ -12,6 +12,7 @@ import time
 import datetime
 import numpy as np
 from middlewares.auth_middleware import login_required
+from middlewares.admin_middleware import admin_required
 
 from models.model1 import run_subdomain_discovery
 from models.model3 import run_technology_fingerprinting_for_subdomains
@@ -20,13 +21,15 @@ from models.model5 import run_model_5
 from models.model6_vulnerability_risk import Model6RiskScorer
 from utils.http_collector import collect_http_features
 from utils.traffic_collector import capture_traffic
+from utils.domain_validator import normalize_domains
 
 from config.database import (
     subdomains_collection,
     reports_collection,
     technologies_collection,
     vulnerabilities_collection,
-    anomalies_collection
+    anomalies_collection,
+    users_collection,
 )
 
 scan_bp = Blueprint('scan', __name__)
@@ -68,16 +71,20 @@ def get_model6():
 
 
 @scan_bp.route("/add_domain", methods=["POST"])
-@login_required
+@admin_required
 def add_domain():
     from config.database import domains_collection
-    data = request.get_json()
-    domain_name = data.get("domain")
+    data = request.get_json() or {}
+    domain_name = (data.get("domain") or "").strip().lower()
 
     if not domain_name:
         return jsonify({"message": "Domain name is required!"}), 400
 
-    domains_collection.insert_one({"domain": domain_name})
+    domains_collection.update_one(
+        {"domain": domain_name},
+        {"$set": {"domain": domain_name, "created_at": datetime.datetime.utcnow()}},
+        upsert=True,
+    )
     return jsonify({"message": "Domain saved successfully!"}), 201
 
 
@@ -87,11 +94,45 @@ def scan_domain():
     try:
 
         data = request.get_json()
-        domain = data.get("domain", "").strip()
+        domain = data.get("domain", "").strip().lower()
         include_tech_scan = data.get("include_tech_scan", False)
 
         if not domain:
             return jsonify({"error": "Domain is required"}), 400
+
+        # ----------------------------------------------------
+        # SECURITY ENFORCEMENT: only allow registered domains
+        # ----------------------------------------------------
+        user_id = session.get("user_id")
+        user_role = session.get("role", "user")
+
+        # Admin can scan any domain
+        if user_role != "admin":
+            try:
+                query_id = ObjectId(user_id)
+                user = users_collection.find_one(
+                    {"_id": query_id}, {"allowed_domains": 1}
+                )
+            except Exception:
+                user = None
+
+            allowed = []
+            if user and user.get("allowed_domains"):
+                # Normalize from stored list, just in case
+                try:
+                    allowed = normalize_domains(user["allowed_domains"])
+                except Exception:
+                    allowed = []
+
+            if not allowed or domain not in allowed:
+                return (
+                    jsonify(
+                        {
+                            "error": "You are only allowed to scan the domains registered in your account."
+                        }
+                    ),
+                    403,
+                )
 
         start = time.time()
         print(f"Starting scan for domain: {domain} by user {session['user_id']}")

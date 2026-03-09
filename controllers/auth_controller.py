@@ -2,22 +2,33 @@
 Auth Controller - Handles authentication (login, signup)
 """
 import datetime
-from flask import request, jsonify, Blueprint , session
+from flask import request, jsonify, Blueprint, session
 from werkzeug.security import generate_password_hash, check_password_hash
 from config.database import users_collection, user_logs_collection
+from utils.domain_validator import normalize_domains
+from middlewares.auth_middleware import login_required
 
 auth_bp = Blueprint('auth', __name__)
 
 
 @auth_bp.route("/signup", methods=["POST"])
 def signup():
-    data = request.get_json()
+    data = request.get_json() or {}
     email = data.get("email")
     username = data.get("username")
     password = data.get("password")
+    raw_domains = data.get("domains")
 
     if not email or not username or not password:
         return jsonify({"message": "All fields are required!"}), 400
+
+    if raw_domains is None:
+        return jsonify({"message": "Domains to scan are required."}), 400
+
+    try:
+        allowed_domains = normalize_domains(raw_domains)
+    except ValueError as e:
+        return jsonify({"message": str(e)}), 400
 
     if users_collection.find_one({"email": email}):
         return jsonify({"message": "Email already registered!"}), 409
@@ -29,16 +40,29 @@ def signup():
         "username": username,
         "password": hashed_pw,
         "status": "pending",
-        "created_at": datetime.datetime.utcnow()
+        "role": "user",
+        "created_at": datetime.datetime.utcnow(),
+        "allowed_domains": allowed_domains,
     })
 
-    return jsonify({"message": "User registered successfully and is now pending admin approval.",
-                     "status": "pending"}), 201
+    return jsonify(
+        {
+            "message": "User registered successfully and is now pending admin approval.",
+            "status": "pending",
+        }
+    ), 201
 
 
 @auth_bp.route("/login", methods=["POST"])
 def login():
-    data = request.get_json()
+    """
+    Unified login endpoint for both regular users and admin.
+
+    Admin credentials are stored in the database like any other user, with:
+    - role: "admin"
+    - password: securely hashed (see utils/seed_admin.py)
+    """
+    data = request.get_json() or {}
     email = data.get("email")
     password = data.get("password")
 
@@ -47,23 +71,7 @@ def login():
 
     ip_address = request.remote_addr or "Unknown IP"
 
-    # Admin Login
-    if email == "ReconX@gmail.com" and password == "reconx1234":
-        user_logs_collection.insert_one({
-            "username": "Admin",
-            "email": email,
-            "status": "Success",
-            "ip": ip_address,
-            "login_time": datetime.datetime.utcnow()
-        })
-        session["logged_in"] = True
-        session["user_id"] = "admin"
-        session["role"] = "admin"
-        session["email"] = email
-        print("SESSION AFTER LOGIN:", dict(session))
-        return jsonify({"message": "Admin login successful!", "email": email, "role": "admin"}), 200
-
-    # Regular User
+    # Look up user (admin and regular users share the same collection)
     user = users_collection.find_one({"email": email})
     if not user:
         user_logs_collection.insert_one({
@@ -75,8 +83,8 @@ def login():
         })
         return jsonify({"message": "User not found!"}), 404
 
-    # Check if user is pending (BLOCK LOGIN)
-    if user.get("status", "pending") != "active":
+    # Check if user is pending (BLOCK LOGIN for non-admin users)
+    if user.get("role") != "admin" and user.get("status", "pending") != "active":
         user_logs_collection.insert_one({
             "username": user["username"],
             "email": email,
@@ -86,9 +94,9 @@ def login():
         })
         return jsonify({"message": "Account awaiting admin approval"}), 403
 
-    # Password Check
-    stored_password = user.get("password")
-    if stored_password == password or check_password_hash(stored_password, password):
+    # Password Check (hashed password only)
+    stored_password = user.get("password") or ""
+    if check_password_hash(stored_password, password):
         user_logs_collection.insert_one({
             "username": user["username"],
             "email": email,
@@ -100,7 +108,8 @@ def login():
         session["user_id"] = str(user["_id"])
         session["role"] = user.get("role", "user")
         session["email"] = user.get("email")
-        return jsonify({"message": "Login successful!", "email": user["email"], "role": "user"}), 200
+        role = user.get("role", "user")
+        return jsonify({"message": "Login successful!", "email": user["email"], "role": role}), 200
     else:
         user_logs_collection.insert_one({
             "username": user["username"],
@@ -120,28 +129,32 @@ def logout():
 
 @auth_bp.route("/user/profile", methods=["GET"])
 def get_user_profile():
-    """Get current logged-in user's profile (username, email, role)."""
+    """Get current logged-in user's profile (username, email, role, allowed domains)."""
     if "user_id" not in session or not session.get("logged_in"):
         return jsonify({"success": False, "error": "User not logged in"}), 401
     
     user_id = session.get("user_id")
-    
-    if user_id == "admin":
-        return jsonify({"username": "Admin", "email": session.get("email"), "role": "admin"}), 200
-    
+
     try:
         from bson.objectid import ObjectId
+
         query_id = ObjectId(user_id)
-        user = users_collection.find_one({"_id": query_id}, {"username": 1, "email": 1, "role": 1})
-        
+        user = users_collection.find_one(
+            {"_id": query_id},
+            {"username": 1, "email": 1, "role": 1, "allowed_domains": 1},
+        )
+
         if not user:
             return jsonify({"success": False, "error": "User not found"}), 404
-        
-        return jsonify({
-            "username": user.get("username"),
-            "email": user.get("email"),
-            "role": user.get("role", "user")
-        }), 200
+
+        return jsonify(
+            {
+                "username": user.get("username"),
+                "email": user.get("email"),
+                "role": user.get("role", "user"),
+                "allowed_domains": user.get("allowed_domains", []),
+            }
+        ), 200
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
@@ -158,16 +171,7 @@ def verify_password():
     
     if not password:
         return jsonify({"success": False, "error": "Password is required"}), 400
-    
-    # Admin account
-    if user_id == "admin":
-        admin_password = "reconx1234"
-        if password == admin_password:
-            return jsonify({"success": True, "message": "Password verified"}), 200
-        else:
-            return jsonify({"success": False, "error": "Incorrect password"}), 401
-    
-    # Regular user
+
     try:
         from bson.objectid import ObjectId
         query_id = ObjectId(user_id)
@@ -178,8 +182,8 @@ def verify_password():
         
         stored_password = user.get("password")
         
-        # Check plain or hashed password
-        if stored_password == password or check_password_hash(stored_password, password):
+        # Check hashed password
+        if stored_password and check_password_hash(stored_password, password):
             return jsonify({"success": True, "message": "Password verified"}), 200
         else:
             return jsonify({"success": False, "error": "Incorrect password"}), 401
@@ -280,10 +284,6 @@ def change_password():
 
     user_id = session.get('user_id')
 
-    # Admin cannot change password via this endpoint
-    if user_id == 'admin':
-        return jsonify({'success': False, 'error': 'Admin password cannot be changed here'}), 403
-
     try:
         from bson.objectid import ObjectId
         query_id = ObjectId(user_id) if isinstance(user_id, str) else user_id
@@ -295,8 +295,8 @@ def change_password():
         return jsonify({'success': False, 'error': 'User not found'}), 404
 
     stored_password = user.get('password', '')
-    # Support legacy plain-text or hashed passwords
-    if not (stored_password == current_password or check_password_hash(stored_password, current_password)):
+    # Check hashed password only
+    if not (stored_password and check_password_hash(stored_password, current_password)):
         return jsonify({'success': False, 'error': 'Current password is incorrect'}), 403
 
     # All checks passed — update password hash
@@ -305,3 +305,59 @@ def change_password():
 
     return jsonify({'success': True, 'message': 'Password changed successfully'})
 
+
+@auth_bp.route("/subusers", methods=["POST"])
+@login_required
+def create_subuser():
+    """
+    Allow a main user to create a sub-user and assign domains.
+    Domains must be a subset of the main user's allowed domains.
+    """
+    parent_id = session.get("user_id")
+    parent = users_collection.find_one({"_id": __import__("bson").ObjectId(parent_id)})
+
+    if not parent or parent.get("role", "user") != "user":
+        return jsonify({"message": "Only main users can create sub-users."}), 403
+
+    data = request.get_json() or {}
+    name = (data.get("name") or "").strip()
+    email = (data.get("email") or "").strip().lower()
+    password = data.get("password") or ""
+    raw_domains = data.get("domains")
+
+    if not name or not email or not password or raw_domains is None:
+        return jsonify({"message": "Name, email, password, and domains are required."}), 400
+
+    if users_collection.find_one({"email": email}):
+        return jsonify({"message": "Email already exists."}), 409
+
+    try:
+        assigned_domains = normalize_domains(raw_domains)
+    except ValueError as e:
+        return jsonify({"message": str(e)}), 400
+
+    parent_allowed = set((parent.get("allowed_domains") or []))
+    if not parent_allowed:
+        return jsonify({"message": "Main user has no allowed domains to assign."}), 400
+
+    if not set(assigned_domains).issubset(parent_allowed):
+        return jsonify(
+            {"message": "Sub-user domains must be a subset of your allowed domains."}
+        ), 400
+
+    hashed_pw = generate_password_hash(password)
+
+    users_collection.insert_one(
+        {
+            "email": email,
+            "username": name,
+            "password": hashed_pw,
+            "role": "sub_user",
+            "parent_id": parent["_id"],
+            "status": "active",
+            "allowed_domains": assigned_domains,
+            "created_at": datetime.datetime.utcnow(),
+        }
+    )
+
+    return jsonify({"message": "Sub-user created successfully."}), 201
