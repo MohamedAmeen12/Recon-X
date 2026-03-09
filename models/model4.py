@@ -10,13 +10,17 @@ import joblib
 import numpy as np
 
 
+# Path setup
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DEFAULT_MODEL_PATH = os.path.join(BASE_DIR, "models", "artifacts", "model4", "model4_iforest.pkl")
+
 class HTTPAnomalyModel:
-    def __init__(self, model_path="models/artifacts/model4/model4_iforest.pkl"):
+    def __init__(self, model_path=None):
         # Lazy import to avoid slow startup
         from sklearn.ensemble import IsolationForest
         from sklearn.preprocessing import StandardScaler
         
-        self.model_path = model_path
+        self.model_path = model_path or DEFAULT_MODEL_PATH
 
         # Feature scaler
         self.scaler = StandardScaler()

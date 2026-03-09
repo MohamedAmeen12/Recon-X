@@ -14,7 +14,8 @@ from typing import Dict, List, Optional
 from utils.tech_fingerprint_tool import fingerprint_technologies
 
 # Global variables for model artifacts
-MODEL_DIR = os.path.join("models", "artifacts", "model3")
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+MODEL_DIR = os.path.join(BASE_DIR, "models", "artifacts", "model3")
 LR_MODEL_PATH = os.path.join(MODEL_DIR, "model3_lr.pkl")
 TFIDF_PATH = os.path.join(MODEL_DIR, "model3_tfidf.pkl")
 

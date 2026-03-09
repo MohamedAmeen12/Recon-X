@@ -62,7 +62,8 @@ CWE_MAPPING = {
 }
 
 # Q-Learning Configuration
-Q_TABLE_FILE = "models/artifacts/model5/model5_qtable.pkl"
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+Q_TABLE_FILE = os.path.join(BASE_DIR, "models", "artifacts", "model5", "model5_qtable.pkl")
 LEARNING_RATE = 0.1
 DISCOUNT_FACTOR = 0.9
 EXPLORATION_RATE = 0.2  # Low exploration, rely mostly on rules
