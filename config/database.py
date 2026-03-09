@@ -27,6 +27,7 @@ subdomains_collection = None
 technologies_collection = None
 vulnerabilities_collection = None
 anomalies_collection = None   # 🔥 REQUIRED
+recommendations_collection = None  # Model 7
 
 
 def connect_mongodb():
@@ -34,7 +35,7 @@ def connect_mongodb():
     global users_collection, domains_collection, reports_collection
     global user_logs_collection, subdomains_collection
     global technologies_collection, vulnerabilities_collection
-    global anomalies_collection
+    global anomalies_collection, recommendations_collection
 
     for attempt in range(MAX_RETRIES):
         try:
@@ -61,6 +62,7 @@ def connect_mongodb():
             technologies_collection = db["technologies"]
             vulnerabilities_collection = db["vulnerabilities"]
             anomalies_collection = db["anomalies"]  # 🔥 MODEL 4
+            recommendations_collection = db["recommendations"]  # Model 7
 
             return True
 
@@ -77,7 +79,7 @@ def _init_dummy_collections():
     global users_collection, domains_collection, reports_collection
     global user_logs_collection, subdomains_collection
     global technologies_collection, vulnerabilities_collection
-    global anomalies_collection
+    global anomalies_collection, recommendations_collection
 
     class DummyCollection:
         def find_one(self, *a, **k): return None
@@ -94,6 +96,7 @@ def _init_dummy_collections():
     technologies_collection = DummyCollection()
     vulnerabilities_collection = DummyCollection()
     anomalies_collection = DummyCollection()   # 🔥 REQUIRED
+    recommendations_collection = DummyCollection()
 
 
 def is_mongodb_connected():

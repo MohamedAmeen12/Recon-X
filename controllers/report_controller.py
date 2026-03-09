@@ -7,7 +7,10 @@ from flask import request, jsonify, Blueprint, session
 from middlewares.auth_middleware import login_required
 from bson.objectid import ObjectId
 from config.database import (
-    reports_collection, technologies_collection, vulnerabilities_collection
+    reports_collection,
+    technologies_collection,
+    vulnerabilities_collection,
+    recommendations_collection,
 )
 
 # ==============================
@@ -15,6 +18,7 @@ from config.database import (
 # ==============================
 from models.model5 import run_model_5
 from models.model6_vulnerability_risk import Model6RiskScorer
+from models.model7_recommendation_engine import RecommendationEngine
 from utils.strategy_stats import build_strategy_statistics
 # ==============================
 
@@ -290,9 +294,44 @@ def get_report():
                 record["result"]["model6"] = scorer.predict_batch(vulnerabilities_to_score)
             else:
                 record["result"]["model6"] = []
-                
+
     except Exception as e:
         print(f"[Model 6] Error: {e}")
+
+    # ====================================================
+    # MODEL 7 – Centralized Recommendation Engine
+    # ====================================================
+    try:
+        model6_results = record["result"].get("model6", [])
+        # Normalize: Model 6 returns "cvss", engine expects "cvss_score" or "cvss"
+        vulnerabilities_for_model7 = []
+        for v in model6_results:
+            vuln = dict(v)
+            if "cvss_score" not in vuln and "cvss" in vuln:
+                vuln["cvss_score"] = vuln["cvss"]
+            vulnerabilities_for_model7.append(vuln)
+
+        recommendation_engine = RecommendationEngine()
+        recommendations = recommendation_engine.generate_recommendations(vulnerabilities_for_model7)
+
+        report_id = record.get("_id")
+        report_id_str = str(report_id) if report_id else None
+        domain = record.get("domain", "")
+
+        for rec in recommendations:
+            doc = dict(rec)
+            doc["report_id"] = report_id_str
+            doc["domain"] = domain
+            doc["created_at"] = datetime.datetime.utcnow()
+            try:
+                recommendations_collection.insert_one(doc)
+            except Exception as e:
+                print(f"[Model 7] MongoDB insert warning: {e}")
+
+        record["result"]["recommendations"] = recommendations
+    except Exception as e:
+        print(f"[Model 7] Error: {e}")
+        record["result"]["recommendations"] = []
 
     record["_id"] = str(record["_id"])
     return jsonify(record)

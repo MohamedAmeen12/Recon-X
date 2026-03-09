@@ -403,6 +403,35 @@ document.addEventListener("DOMContentLoaded", async () => {
       `;
     }
 
+    /* ===============================
+       MODEL 7 – Recommendations
+    =============================== */
+    const recommendationsData = r.recommendations || [];
+    const recommendationsHTML = recommendationsData.length ? `
+      <div id="recommendations-section" class="recommendations-section">
+        <h3>Recommended Patches & Remediation</h3>
+        <p class="card-text" style="margin-bottom: 16px;">One recommendation per vulnerability. Apply fixes in priority order.</p>
+        <div class="recommendation-cards">
+          ${recommendationsData.map(rec => `
+            <div class="recommendation-card card">
+              <div class="rec-row"><strong>CVE:</strong> ${rec.cve_id || "N/A"}</div>
+              <div class="rec-row"><strong>Service:</strong> ${rec.service || "N/A"}</div>
+              <div class="rec-row"><strong>Port:</strong> ${rec.port !== undefined && rec.port !== null ? rec.port : "N/A"}</div>
+              <div class="rec-row"><strong>Risk Level:</strong> <span class="risk-badge ${(rec.risk_level || "unknown").toLowerCase()}">${rec.risk_level || "Unknown"}</span></div>
+              <div class="rec-row rec-remediation"><strong>Recommended Patch:</strong><br>${rec.remediation || "—"}</div>
+              <div class="rec-row">${rec.patch_link ? `<strong>Reference:</strong> <a href="${rec.patch_link}" target="_blank" rel="noopener">${rec.patch_link}</a>` : ""}</div>
+              <div class="rec-row rec-priority"><strong>Priority:</strong> ${rec.priority || "—"}</div>
+            </div>
+          `).join("")}
+        </div>
+      </div>
+    ` : `
+      <div id="recommendations-section" class="recommendations-section">
+        <h3>Recommended Patches & Remediation</h3>
+        <p class="card-text">No vulnerabilities in this report; no recommendations to show.</p>
+      </div>
+    `;
+
     reportContent.innerHTML = `
       <div class="summary card">
         <strong>Total Candidates:</strong> ${r.total_candidates || 0}
@@ -420,7 +449,19 @@ document.addEventListener("DOMContentLoaded", async () => {
       ${model5StatsHTML}
       ${model5HTML}
       ${model6HTML}
+      ${recommendationsHTML}
     `;
+
+    const patchBtn = document.getElementById("patch-btn");
+    if (patchBtn) {
+      patchBtn.onclick = () => {
+        const recSection = document.getElementById("recommendations-section");
+        if (recSection) {
+          recSection.style.display = "block";
+          recSection.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      };
+    }
 
   } catch (err) {
     console.error(err);
