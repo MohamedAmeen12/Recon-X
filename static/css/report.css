@@ -75,7 +75,7 @@ body {
 
 .report-content-area {
     width: 100%;
-    max-width: 950px;
+    max-width: 1100px;
 }
 
 /* ============================================
@@ -383,4 +383,82 @@ body {
     font-size: 0.7rem;
     font-weight: 700;
     letter-spacing: 0.5px;
+}
+
+/* ============================================
+   VULNERABILITY RISK ASSESSMENT (MODEL 6) - REDESIGN
+============================================ */
+.risk-table-container {
+    background: #ffffff;
+    padding: 25px;
+    border-radius: 12px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+    margin-top: 20px;
+    color: #2c3e50;
+}
+
+.risk-table-container h3 {
+    margin-top: 0 !important;
+    border-bottom: none !important;
+    color: #2c3e50 !important;
+    font-size: 1.4rem !important;
+    padding-bottom: 0 !important;
+}
+
+.vuln-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+}
+
+.vuln-table th {
+    text-align: left;
+    padding: 12px;
+    color: #2c3e50 !important;
+    border-bottom: 2px solid #ddd;
+    font-size: 14px;
+    text-transform: none;
+    letter-spacing: normal;
+}
+
+.vuln-table td {
+    padding: 12px;
+    color: #2c3e50 !important;
+    border-bottom: 1px solid #eee;
+    font-size: 14px;
+}
+
+.vuln-table tr:hover {
+    background: #f5f7fa;
+}
+
+.risk-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-weight: bold;
+    font-size: 12px;
+    text-transform: uppercase;
+    text-align: center;
+    min-width: 80px;
+}
+
+.risk-badge.critical {
+    background: #8B0000 !important;
+    color: white !important;
+}
+
+.risk-badge.high {
+    background: #FF3B3B !important;
+    color: white !important;
+}
+
+.risk-badge.medium {
+    background: #FFA500 !important;
+    color: black !important;
+}
+
+.risk-badge.low {
+    background: #2ECC71 !important;
+    color: white !important;
 }

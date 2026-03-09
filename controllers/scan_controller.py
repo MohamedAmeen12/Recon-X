@@ -17,6 +17,7 @@ from models.model1 import run_subdomain_discovery
 from models.model3 import run_technology_fingerprinting_for_subdomains
 from models.model4 import HTTPAnomalyModel
 from models.model5 import run_model_5
+from models.model6_vulnerability_risk import Model6RiskScorer
 from utils.http_collector import collect_http_features
 from utils.traffic_collector import capture_traffic
 
@@ -44,17 +45,26 @@ def sanitize_for_mongo(data):
     return data
 
 # ====================================================
-# MODEL 4 LAZY INITIALIZATION (ONLY WHEN NEEDED)
+# MODEL 4 & 6 LAZY INITIALIZATION
 # ====================================================
 _model4_instance = None
+_model6_instance = None
 
 def get_model4():
-    """Lazy initialization of Model 4 to avoid slow startup"""
+    """Lazy initialization of Model 4"""
     global _model4_instance
     if _model4_instance is None:
         _model4_instance = HTTPAnomalyModel()
         _model4_instance.load()
     return _model4_instance
+
+def get_model6():
+    """Lazy initialization of Model 6"""
+    global _model6_instance
+    if _model6_instance is None:
+        _model6_instance = Model6RiskScorer()
+        _model6_instance.load_model()
+    return _model6_instance
 
 
 @scan_bp.route("/add_domain", methods=["POST"])
@@ -284,6 +294,58 @@ def scan_domain():
             print("[Model 5] Skipping - technology scan not performed or no results available")
 
         # ====================================================
+        # MODEL 6: VULNERABILITY PRIORITIZATION & RISK SCORING
+        # ====================================================
+        model6_results = []
+        try:
+            vulnerabilities_to_score = []
+            subdomain_count = len(result.get("raw_docs", []))
+            
+            # Map anomalies for easier lookup
+            anomaly_map = {a["subdomain"]: a["model4_result"] for a in http_anomaly_results}
+            
+            for tech_res in tech_results:
+                url = tech_res.get("url", "")
+                subdomain = url.replace("http://", "").replace("https://", "")
+                sub_doc = next((s for s in result.get("raw_docs", []) if s.get("subdomain") == subdomain), {})
+                
+                anomaly_data = anomaly_map.get(subdomain, {})
+                
+                exposed_service_count = len(sub_doc.get("open_ports", []))
+                
+                for tech in tech_res.get("technologies", []):
+                    # Correctly identify port from tech metadata or URL
+                    port = tech.get("metadata", {}).get("port")
+                    if not port or port == 0:
+                        port = 443 if "https://" in url else 80
+                        
+                    for cve in tech.get("cves", []):
+                        record = {
+                            "domain": domain,
+                            "subdomain": subdomain,
+                            "service_name": tech.get("technology"),
+                            "port_number": int(port),
+                            "cvss_score": float(cve.get("cvss", 0.0)),
+                            "exploit_available": 1 if tech.get("source") == "ExploitDB" else 0,
+                            "cve_id": cve.get("cve"),
+                            "technology_stack": tech.get("technology"),
+                            "is_public_port": 1,
+                            "anomaly_flag": 1 if anomaly_data.get("status") == "suspicious" else 0,
+                            "traffic_anomaly_score": float(anomaly_data.get("anomaly_score", 0.0)),
+                            "misconfiguration_flag": 0,
+                            "subdomain_count": subdomain_count,
+                            "exposed_service_count": exposed_service_count
+                        }
+                        vulnerabilities_to_score.append(record)
+
+            if vulnerabilities_to_score:
+                print(f"[Model 6] Scoring {len(vulnerabilities_to_score)} vulnerabilities")
+                scorer = get_model6()
+                model6_results = scorer.predict_batch(vulnerabilities_to_score)
+        except Exception as e:
+            print(f"[Model 6 Error] {e}")
+
+        # ====================================================
         # ✅ FINAL REPORT (SNAPSHOT)
         # ====================================================
         report = {
@@ -303,7 +365,8 @@ def scan_domain():
                 "ports_summary": result.get("ports_summary", {}),
                 "technology_fingerprints": tech_results,
                 "http_anomalies": http_anomaly_results,
-                "model5": model5_output
+                "model5": model5_output,
+                "model6": model6_results
             }
         }
         

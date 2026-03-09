@@ -360,6 +360,49 @@ document.addEventListener("DOMContentLoaded", async () => {
     /* ===============================
        FINAL RENDER
     =============================== */
+
+    // Process Model 6 HTML into Table
+    const model6Data = r.model6 || [];
+    let model6HTML = "";
+    if (model6Data.length) {
+      model6HTML = `
+        <div class="risk-table-container">
+          <h3>Vulnerability Risk Assessment</h3>
+          <table class="vuln-table">
+            <thead>
+              <tr>
+                <th>CVE ID</th>
+                <th>Service</th>
+                <th>Port</th>
+                <th>CVSS</th>
+                <th>Risk Level</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${model6Data.map(v => {
+        const portDisplay = (v.port !== undefined && v.port !== null && v.port !== "") ? v.port : "N/A";
+        const cvssDisplay = (v.cvss !== undefined && v.cvss !== null && v.cvss !== "") ? v.cvss : "N/A";
+        const riskClass = (v.risk_level || "unknown").toLowerCase();
+
+        return `
+                <tr>
+                  <td>${v.cve_id || "N/A"}</td>
+                  <td>${v.service || "N/A"}</td>
+                  <td>${portDisplay}</td>
+                  <td>${cvssDisplay}</td>
+                  <td>
+                    <span class="risk-badge ${riskClass}">
+                      ${v.risk_level || "Unknown"}
+                    </span>
+                  </td>
+                </tr>`;
+      }).join("")}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+
     reportContent.innerHTML = `
       <div class="summary card">
         <strong>Total Candidates:</strong> ${r.total_candidates || 0}
@@ -376,6 +419,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       ${model4HTML}
       ${model5StatsHTML}
       ${model5HTML}
+      ${model6HTML}
     `;
 
   } catch (err) {

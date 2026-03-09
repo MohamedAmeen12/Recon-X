@@ -14,8 +14,21 @@ from config.database import (
 # MODEL 5 IMPORTS
 # ==============================
 from models.model5 import run_model_5
+from models.model6_vulnerability_risk import Model6RiskScorer
 from utils.strategy_stats import build_strategy_statistics
 # ==============================
+
+# ==============================
+# MODEL 6 LAZY INITIALIZATION
+# ==============================
+_model6_instance = None
+
+def get_model6():
+    global _model6_instance
+    if _model6_instance is None:
+        _model6_instance = Model6RiskScorer()
+        _model6_instance.load_model()
+    return _model6_instance
 
 report_bp = Blueprint('report', __name__)
 
@@ -206,7 +219,80 @@ def get_report():
         record["result"]["model5"] = model5_result
         
     except Exception as e:
-        print(f"[Model 5 Error] {e}")
+        print(f"[Model 5] Error: {e}")
+
+    # ====================================================
+    # ✅ MODEL 6 LOGIC (LAZY LOADING & REGENERATION)
+    # ====================================================
+    try:
+        model6_data = record["result"].get("model6", [])
+        
+        # Check if model6 data is missing OR in an outdated format (missing risk_level)
+        outdated = False
+        if model6_data and len(model6_data) > 0:
+            first_item = model6_data[0]
+            if "risk_level" not in first_item or "service" not in first_item:
+                outdated = True
+                print("[Model 6] Outdated data detected, forcing regeneration...")
+
+        if not model6_data or outdated:
+            tech_results = record["result"].get("technology_fingerprints", [])
+            raw_docs = record["result"].get("raw_docs", [])
+            subdomain_count = len(raw_docs)
+            
+            vulnerabilities_to_score = []
+            
+            # Map port metrics per subdomain
+            subdomain_metrics = {
+                s["subdomain"]: len(s.get("open_ports", []))
+                for s in raw_docs
+            }
+            
+            # Use Model 4 results if present
+            anomaly_map = {}
+            if record["result"].get("http_anomalies"):
+                anomaly_map = {a["subdomain"]: a["model4_result"] for a in record["result"]["http_anomalies"]}
+
+            for tech_res in tech_results:
+                url = tech_res.get("url", "")
+                subdomain = url.replace("http://", "").replace("https://", "")
+                exposed_service_count = subdomain_metrics.get(subdomain, 0)
+                anomaly_data = anomaly_map.get(subdomain, {})
+                
+                for tech in tech_res.get("technologies", []):
+                    # Robust port detection
+                    port = tech.get("metadata", {}).get("port")
+                    if not port or port == 0:
+                        port = 443 if "https://" in url else 80
+                        
+                    for cve in tech.get("cves", []):
+                        record_features = {
+                            "domain": record.get("domain"),
+                            "subdomain": subdomain,
+                            "service_name": tech.get("technology"),
+                            "port_number": int(port),
+                            "cvss_score": float(cve.get("cvss", 0.0)),
+                            "exploit_available": 1 if tech.get("source") == "ExploitDB" else 0,
+                            "cve_id": cve.get("cve"),
+                            "technology_stack": tech.get("technology"),
+                            "is_public_port": 1,
+                            "anomaly_flag": 1 if anomaly_data.get("status") == "suspicious" else 0,
+                            "traffic_anomaly_score": float(anomaly_data.get("anomaly_score", 0.0)),
+                            "misconfiguration_flag": 0,
+                            "subdomain_count": subdomain_count,
+                            "exposed_service_count": exposed_service_count
+                        }
+                        vulnerabilities_to_score.append(record_features)
+
+            if vulnerabilities_to_score:
+                print(f"[Model 6] Scoring {len(vulnerabilities_to_score)} vulnerabilities for report")
+                scorer = get_model6()
+                record["result"]["model6"] = scorer.predict_batch(vulnerabilities_to_score)
+            else:
+                record["result"]["model6"] = []
+                
+    except Exception as e:
+        print(f"[Model 6] Error: {e}")
 
     record["_id"] = str(record["_id"])
     return jsonify(record)
