@@ -388,3 +388,71 @@ def get_audit_actions():
         return jsonify({"actions": sorted(actions)})
     except Exception as e:
         return jsonify({"actions": [], "error": str(e)})
+
+
+@admin_bp.route("/update_user_role/<user_id>", methods=["POST"])
+@admin_required
+def update_user_role(user_id):
+    """Update a user's role (admin/user)."""
+    data = request.get_json() or {}
+    new_role = data.get("role")
+
+    if new_role not in ["admin", "user"]:
+        return jsonify({"message": "Invalid role"}), 400
+
+    user = users_collection.find_one({"_id": ObjectId(user_id)})
+    if not user:
+        return jsonify({"message": "User not found"}), 404
+
+    old_role = user.get("role", "user")
+    users_collection.update_one(
+        {"_id": ObjectId(user_id)},
+        {"$set": {"role": new_role, "updated_at": datetime.datetime.utcnow()}}
+    )
+
+    # ── Audit Log ──
+    log_audit_event(
+        action="admin_role_updated",
+        details={
+            "target_user_id": user_id,
+            "target_email": user.get("email"),
+            "old_role": old_role,
+            "new_role": new_role
+        }
+    )
+
+    return jsonify({"message": f"User role updated to {new_role}"}), 200
+
+
+@admin_bp.route("/update_user_status/<user_id>", methods=["POST"])
+@admin_required
+def update_user_status(user_id):
+    """Update a user's status (active/disabled)."""
+    data = request.get_json() or {}
+    new_status = data.get("status")
+
+    if new_status not in ["active", "disabled"]:
+        return jsonify({"message": "Invalid status"}), 400
+
+    user = users_collection.find_one({"_id": ObjectId(user_id)})
+    if not user:
+        return jsonify({"message": "User not found"}), 404
+
+    old_status = user.get("status", "active")
+    users_collection.update_one(
+        {"_id": ObjectId(user_id)},
+        {"$set": {"status": new_status, "updated_at": datetime.datetime.utcnow()}}
+    )
+
+    # ── Audit Log ──
+    log_audit_event(
+        action="admin_status_updated",
+        details={
+            "target_user_id": user_id,
+            "target_email": user.get("email"),
+            "old_status": old_status,
+            "new_status": new_status
+        }
+    )
+
+    return jsonify({"message": f"User status updated to {new_status}"}), 200
