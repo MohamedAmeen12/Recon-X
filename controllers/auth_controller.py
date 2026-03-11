@@ -6,6 +6,7 @@ from flask import request, jsonify, Blueprint, session
 from werkzeug.security import generate_password_hash, check_password_hash
 from config.database import users_collection, user_logs_collection
 from utils.domain_validator import normalize_domains
+from utils.audit_logger import log_audit_event
 from middlewares.auth_middleware import login_required
 
 auth_bp = Blueprint('auth', __name__)
@@ -45,6 +46,13 @@ def signup():
         "allowed_domains": allowed_domains,
     })
 
+    # ── Audit Log ──
+    log_audit_event(
+        action="user_signup",
+        details={"status": "pending", "domains_requested": allowed_domains},
+        user_override={"username": username, "email": email, "user_id": ""},
+    )
+
     return jsonify(
         {
             "message": "User registered successfully and is now pending admin approval.",
@@ -81,6 +89,12 @@ def login():
             "ip": ip_address,
             "login_time": datetime.datetime.utcnow()
         })
+        # ── Audit Log ──
+        log_audit_event(
+            action="login_failed",
+            details={"reason": "User not found"},
+            user_override={"username": "Unknown", "email": email, "user_id": ""},
+        )
         return jsonify({"message": "User not found!"}), 404
 
     # Check if user is pending (BLOCK LOGIN for non-admin users)
@@ -92,6 +106,16 @@ def login():
             "ip": ip_address,
             "login_time": datetime.datetime.utcnow()
         })
+        # ── Audit Log ──
+        log_audit_event(
+            action="login_failed",
+            details={"reason": "Pending approval"},
+            user_override={
+                "username": user["username"],
+                "email": email,
+                "user_id": str(user["_id"]),
+            },
+        )
         return jsonify({"message": "Account awaiting admin approval"}), 403
 
     # Password Check (hashed password only)
@@ -108,7 +132,20 @@ def login():
         session["user_id"] = str(user["_id"])
         session["role"] = user.get("role", "user")
         session["email"] = user.get("email")
+        session["username"] = user.get("username")
         role = user.get("role", "user")
+
+        # ── Audit Log ──
+        log_audit_event(
+            action="login_success",
+            details={"role": role},
+            user_override={
+                "username": user["username"],
+                "email": email,
+                "user_id": str(user["_id"]),
+            },
+        )
+
         return jsonify({"message": "Login successful!", "email": user["email"], "role": role}), 200
     else:
         user_logs_collection.insert_one({
@@ -118,11 +155,23 @@ def login():
             "ip": ip_address,
             "login_time": datetime.datetime.utcnow()
         })
+        # ── Audit Log ──
+        log_audit_event(
+            action="login_failed",
+            details={"reason": "Wrong password"},
+            user_override={
+                "username": user["username"],
+                "email": email,
+                "user_id": str(user["_id"]),
+            },
+        )
         return jsonify({"message": "Incorrect password!"}), 401
 
 
 @auth_bp.route("/logout", methods=["POST", "GET"])
 def logout():
+    # ── Audit Log ──
+    log_audit_event(action="logout")
     session.clear()
     return jsonify({"message": "Logged out successfully"}), 200
 
@@ -253,6 +302,9 @@ def change_username():
             return jsonify({"success": False, "error": "Admin cannot change username this way"}), 403
         
         query_id = ObjectId(user_id) if isinstance(user_id, str) else user_id
+        old_user = users_collection.find_one({"_id": query_id}, {"username": 1})
+        old_username = old_user.get("username", "") if old_user else ""
+
         result = users_collection.update_one(
             {"_id": query_id},
             {"$set": {"username": new_username, "updated_at": datetime.datetime.utcnow()}}
@@ -261,6 +313,12 @@ def change_username():
         if result.modified_count == 0:
             return jsonify({"success": False, "error": "Failed to update username"}), 500
         
+        # ── Audit Log ──
+        log_audit_event(
+            action="username_changed",
+            details={"old_username": old_username, "new_username": new_username},
+        )
+
         return jsonify({"success": True, "message": "Username changed successfully"}), 200
     
     except Exception as e:
@@ -303,61 +361,8 @@ def change_password():
     new_hash = generate_password_hash(new_password)
     users_collection.update_one({'_id': query_id}, {'$set': {'password': new_hash}})
 
+    # ── Audit Log ──
+    log_audit_event(action="password_changed")
+
     return jsonify({'success': True, 'message': 'Password changed successfully'})
 
-
-@auth_bp.route("/subusers", methods=["POST"])
-@login_required
-def create_subuser():
-    """
-    Allow a main user to create a sub-user and assign domains.
-    Domains must be a subset of the main user's allowed domains.
-    """
-    parent_id = session.get("user_id")
-    parent = users_collection.find_one({"_id": __import__("bson").ObjectId(parent_id)})
-
-    if not parent or parent.get("role", "user") != "user":
-        return jsonify({"message": "Only main users can create sub-users."}), 403
-
-    data = request.get_json() or {}
-    name = (data.get("name") or "").strip()
-    email = (data.get("email") or "").strip().lower()
-    password = data.get("password") or ""
-    raw_domains = data.get("domains")
-
-    if not name or not email or not password or raw_domains is None:
-        return jsonify({"message": "Name, email, password, and domains are required."}), 400
-
-    if users_collection.find_one({"email": email}):
-        return jsonify({"message": "Email already exists."}), 409
-
-    try:
-        assigned_domains = normalize_domains(raw_domains)
-    except ValueError as e:
-        return jsonify({"message": str(e)}), 400
-
-    parent_allowed = set((parent.get("allowed_domains") or []))
-    if not parent_allowed:
-        return jsonify({"message": "Main user has no allowed domains to assign."}), 400
-
-    if not set(assigned_domains).issubset(parent_allowed):
-        return jsonify(
-            {"message": "Sub-user domains must be a subset of your allowed domains."}
-        ), 400
-
-    hashed_pw = generate_password_hash(password)
-
-    users_collection.insert_one(
-        {
-            "email": email,
-            "username": name,
-            "password": hashed_pw,
-            "role": "sub_user",
-            "parent_id": parent["_id"],
-            "status": "active",
-            "allowed_domains": assigned_domains,
-            "created_at": datetime.datetime.utcnow(),
-        }
-    )
-
-    return jsonify({"message": "Sub-user created successfully."}), 201

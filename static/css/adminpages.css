@@ -421,3 +421,177 @@ tr:hover {
 .add-user button:hover {
   transform: translateY(-3px);
 }
+
+/* =====================================================
+   AUDIT LOGS — FILTER BAR
+===================================================== */
+.audit-filter-bar {
+  max-width: 1200px;
+  margin: 0 auto 24px;
+}
+
+.audit-title {
+  font-size: 2rem;
+  font-weight: 800;
+  margin-bottom: 18px;
+  letter-spacing: 0.5px;
+}
+
+.audit-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.audit-input,
+.audit-select {
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  color: #f1f1f1;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.15);
+  outline: none;
+  transition: 0.25s ease;
+  min-width: 130px;
+}
+
+.audit-input::placeholder {
+  color: #b0b0b0;
+}
+
+.audit-input:focus,
+.audit-select:focus {
+  border-color: #22c55e;
+  box-shadow: 0 0 0 2px rgba(34,197,94,0.3);
+}
+
+.audit-select {
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23ccc' viewBox='0 0 16 16'%3E%3Cpath d='M1.5 5.5 8 12l6.5-6.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 32px;
+}
+
+.audit-select option {
+  background: #1a1a1a;
+  color: #f1f1f1;
+}
+
+.audit-btn {
+  padding: 10px 22px;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 700;
+  transition: 0.25s ease;
+}
+
+.audit-btn:hover {
+  transform: translateY(-2px);
+}
+
+.filter-btn {
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  color: white;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.4);
+}
+
+.clear-btn {
+  background: rgba(255,255,255,0.1);
+  color: #d1d1d1;
+  border: 1px solid rgba(255,255,255,0.15);
+}
+
+.clear-btn:hover {
+  background: rgba(255,255,255,0.15);
+  color: #fff;
+}
+
+/* =====================================================
+   AUDIT LOGS — TABLE TWEAKS
+===================================================== */
+.audit-table-container {
+  max-width: 1200px;
+}
+
+.audit-action-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+
+.audit-verify-btn {
+  background: none;
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: 0.2s ease;
+}
+
+.audit-verify-btn:hover {
+  background: rgba(255,255,255,0.08);
+  transform: scale(1.05);
+}
+
+/* =====================================================
+   AUDIT LOGS — PAGINATION
+===================================================== */
+.audit-pagination {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+}
+
+.audit-page-btn {
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.05);
+  color: #d1d1d1;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.audit-page-btn:hover {
+  background: rgba(255,255,255,0.1);
+  color: #fff;
+}
+
+.audit-page-btn.active {
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  color: #fff;
+  border-color: transparent;
+}
+
+/* =====================================================
+   RESPONSIVE — AUDIT FILTERS
+===================================================== */
+@media (max-width: 900px) {
+  .audit-filters {
+    flex-direction: column;
+  }
+
+  .audit-input,
+  .audit-select,
+  .audit-btn {
+    width: 100%;
+  }
+}

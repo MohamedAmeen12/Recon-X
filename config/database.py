@@ -28,6 +28,7 @@ technologies_collection = None
 vulnerabilities_collection = None
 anomalies_collection = None   # 🔥 REQUIRED
 recommendations_collection = None  # Model 7
+audit_logs_collection = None  # Audit Logs (tamper-resistant)
 
 
 def connect_mongodb():
@@ -36,6 +37,7 @@ def connect_mongodb():
     global user_logs_collection, subdomains_collection
     global technologies_collection, vulnerabilities_collection
     global anomalies_collection, recommendations_collection
+    global audit_logs_collection
 
     for attempt in range(MAX_RETRIES):
         try:
@@ -63,6 +65,7 @@ def connect_mongodb():
             vulnerabilities_collection = db["vulnerabilities"]
             anomalies_collection = db["anomalies"]  # 🔥 MODEL 4
             recommendations_collection = db["recommendations"]  # Model 7
+            audit_logs_collection = db["audit_logs"]  # Audit Logs
 
             return True
 
@@ -80,6 +83,7 @@ def _init_dummy_collections():
     global user_logs_collection, subdomains_collection
     global technologies_collection, vulnerabilities_collection
     global anomalies_collection, recommendations_collection
+    global audit_logs_collection
 
     class DummyCollection:
         def find_one(self, *a, **k): return None
@@ -97,6 +101,7 @@ def _init_dummy_collections():
     vulnerabilities_collection = DummyCollection()
     anomalies_collection = DummyCollection()   # 🔥 REQUIRED
     recommendations_collection = DummyCollection()
+    audit_logs_collection = DummyCollection()
 
 
 def is_mongodb_connected():

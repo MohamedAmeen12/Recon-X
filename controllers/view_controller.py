@@ -67,10 +67,10 @@ def pending_users_page():
     return render_template("admin/pending_users.html")
 
 
-@view_bp.route("/admin/user-logs")
+@view_bp.route("/admin/audit-logs")
 @admin_required
-def user_logs_page():
-    return render_template("admin/user_logs.html")
+def audit_logs_page():
+    return render_template("admin/audit_logs.html")
 
 
 @view_bp.route("/admin/user-edit")

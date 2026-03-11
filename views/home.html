@@ -88,10 +88,10 @@
             <span class="option-icon">👤</span>
             <span class="option-text">Change Username</span>
           </button>
-            <button id="changePasswordOptionBtn" class="settings-option-btn">
-              <span class="option-icon">🔑</span>
-              <span class="option-text">Change Password</span>
-            </button>
+          <button id="changePasswordOptionBtn" class="settings-option-btn">
+            <span class="option-icon">🔑</span>
+            <span class="option-text">Change Password</span>
+          </button>
         </div>
       </div>
       <div class="modal-footer">
@@ -100,29 +100,29 @@
     </div>
   </div>
 
-    <!-- CHANGE PASSWORD MODAL -->
-    <div id="changePasswordModal" class="modal">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h2>Change Password</h2>
-          <button class="modal-close" id="closeChangePasswordModal">&times;</button>
-        </div>
-        <div class="modal-body">
-          <label for="currentPasswordInput">Current Password:</label>
-          <input type="password" id="currentPasswordInput" placeholder="Enter current password" />
-          <label for="newPasswordInput">New Password:</label>
-          <input type="password" id="newPasswordInput" placeholder="Enter new password (min 8 chars)" />
-          <label for="confirmPasswordInput">Confirm New Password:</label>
-          <input type="password" id="confirmPasswordInput" placeholder="Confirm new password" />
-          <p id="changePasswordError" class="error-message"></p>
-          <p id="changePasswordSuccess" class="success-message"></p>
-        </div>
-        <div class="modal-footer">
-          <button id="changePasswordCancelBtn" class="btn btn-secondary">Cancel</button>
-          <button id="changePasswordSubmitBtn" class="btn btn-primary">Change Password</button>
-        </div>
+  <!-- CHANGE PASSWORD MODAL -->
+  <div id="changePasswordModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Change Password</h2>
+        <button class="modal-close" id="closeChangePasswordModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <label for="currentPasswordInput">Current Password:</label>
+        <input type="password" id="currentPasswordInput" placeholder="Enter current password" />
+        <label for="newPasswordInput">New Password:</label>
+        <input type="password" id="newPasswordInput" placeholder="Enter new password (min 8 chars)" />
+        <label for="confirmPasswordInput">Confirm New Password:</label>
+        <input type="password" id="confirmPasswordInput" placeholder="Confirm new password" />
+        <p id="changePasswordError" class="error-message"></p>
+        <p id="changePasswordSuccess" class="success-message"></p>
+      </div>
+      <div class="modal-footer">
+        <button id="changePasswordCancelBtn" class="btn btn-secondary">Cancel</button>
+        <button id="changePasswordSubmitBtn" class="btn btn-primary">Change Password</button>
       </div>
     </div>
+  </div>
 
   <!-- MAIN CONTENT -->
   <main class="content">
@@ -172,36 +172,6 @@
       </div>
     </section>
 
-    <!-- SUB-USERS MANAGEMENT -->
-    <section id="subusers" class="analytics" style="margin-top: 40px;">
-      <h2>Team Access – Add Users</h2>
-      <p style="max-width: 520px; margin: 0 auto 20px; font-size: 0.95rem;">
-        Create sub-users for your team and assign them specific domains from your account.
-        Sub-users will only be able to scan the domains you assign.
-      </p>
-
-      <div class="stats-grid">
-        <div class="stat-card" style="max-width: 520px; margin: 0 auto;">
-          <h3>Add Sub-User</h3>
-          <form id="subUserForm">
-            <input type="text" id="subUserName" placeholder="Full Name" required />
-            <input type="email" id="subUserEmail" placeholder="Email" required />
-            <input type="password" id="subUserPassword" placeholder="Password" required />
-            <textarea
-              id="subUserDomains"
-              rows="3"
-              placeholder="Assigned domains (from your allowed list)&#10;example.com, sub.example.com"
-              required
-            ></textarea>
-            <p id="subUserHint" style="font-size: 0.8rem; color: #e0e0e0; margin-top: 6px;">
-              You can assign one or more of your allowed domains, separated by commas or new lines.
-            </p>
-            <button type="submit" class="scan-btn" style="margin-top: 10px;">Create Sub-User</button>
-          </form>
-        </div>
-      </div>
-    </section>
-
     <!-- FOOTER -->
     <footer id="contact" class="footer">
       <h3>Contact Us</h3>
@@ -223,7 +193,6 @@
   <script src="/static/js/change_username.js"></script>
   <script src="/static/js/darkmode.js"></script>
   <script src="/static/js/auth.js"></script>
-  <script src="/static/js/subusers.js"></script>
 </body>
 
 </html>

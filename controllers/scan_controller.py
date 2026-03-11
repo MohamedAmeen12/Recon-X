@@ -22,6 +22,7 @@ from models.model6_vulnerability_risk import Model6RiskScorer
 from utils.http_collector import collect_http_features
 from utils.traffic_collector import capture_traffic
 from utils.domain_validator import normalize_domains
+from utils.audit_logger import log_audit_event
 
 from config.database import (
     subdomains_collection,
@@ -85,6 +86,14 @@ def add_domain():
         {"$set": {"domain": domain_name, "created_at": datetime.datetime.utcnow()}},
         upsert=True,
     )
+
+    # ── Audit Log ──
+    log_audit_event(
+        action="domain_added",
+        domain=domain_name,
+        details={"added_by": "admin"},
+    )
+
     return jsonify({"message": "Domain saved successfully!"}), 201
 
 
@@ -136,6 +145,13 @@ def scan_domain():
 
         start = time.time()
         print(f"Starting scan for domain: {domain} by user {session['user_id']}")
+
+        # ── Audit Log: scan started ──
+        log_audit_event(
+            action="scan_started",
+            domain=domain,
+            details={"include_tech_scan": include_tech_scan},
+        )
 
         # ====================================================
         # MODEL 1: SUBDOMAIN DISCOVERY
@@ -415,6 +431,17 @@ def scan_domain():
         report = sanitize_for_mongo(report)
         insert_result = reports_collection.insert_one(report)
         report_id = str(insert_result.inserted_id)
+
+        # ── Audit Log: scan completed ──
+        log_audit_event(
+            action="scan_completed",
+            domain=domain,
+            details={
+                "report_id": report_id,
+                "elapsed_seconds": round(time.time() - start, 2),
+                "total_candidates": result.get("total_candidates", 0),
+            },
+        )
 
         return jsonify({
             "message": "Scan complete", 

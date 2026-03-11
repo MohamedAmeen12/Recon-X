@@ -6,6 +6,7 @@ import requests
 from flask import request, jsonify, Blueprint, session
 from middlewares.auth_middleware import login_required
 from bson.objectid import ObjectId
+from utils.audit_logger import log_audit_event
 from config.database import (
     reports_collection,
     technologies_collection,
@@ -334,6 +335,14 @@ def get_report():
         record["result"]["recommendations"] = []
 
     record["_id"] = str(record["_id"])
+
+    # ── Audit Log: report downloaded/viewed ──
+    log_audit_event(
+        action="report_downloaded",
+        domain=record.get("domain", ""),
+        details={"report_id": record["_id"]},
+    )
+
     return jsonify(record)
 
 
