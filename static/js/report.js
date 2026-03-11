@@ -404,31 +404,16 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     /* ===============================
-       MODEL 7 – Recommendations
+       MODEL 7 – Recommendations (Async Container)
     =============================== */
-    const recommendationsData = r.recommendations || [];
-    const recommendationsHTML = recommendationsData.length ? `
-      <div id="recommendations-section" class="recommendations-section">
+    // We render an empty container and handle fetching on button click
+    const recommendationsHTML = `
+      <div id="recommendations-section" class="recommendations-section" style="display: none;">
         <h3>Recommended Patches & Remediation</h3>
         <p class="card-text" style="margin-bottom: 16px;">One recommendation per vulnerability. Apply fixes in priority order.</p>
-        <div class="recommendation-cards">
-          ${recommendationsData.map(rec => `
-            <div class="recommendation-card card">
-              <div class="rec-row"><strong>CVE:</strong> ${rec.cve_id || "N/A"}</div>
-              <div class="rec-row"><strong>Service:</strong> ${rec.service || "N/A"}</div>
-              <div class="rec-row"><strong>Port:</strong> ${rec.port !== undefined && rec.port !== null ? rec.port : "N/A"}</div>
-              <div class="rec-row"><strong>Risk Level:</strong> <span class="risk-badge ${(rec.risk_level || "unknown").toLowerCase()}">${rec.risk_level || "Unknown"}</span></div>
-              <div class="rec-row rec-remediation"><strong>Recommended Patch:</strong><br>${rec.remediation || "—"}</div>
-              <div class="rec-row">${rec.patch_link ? `<strong>Reference:</strong> <a href="${rec.patch_link}" target="_blank" rel="noopener">${rec.patch_link}</a>` : ""}</div>
-              <div class="rec-row rec-priority"><strong>Priority:</strong> ${rec.priority || "—"}</div>
-            </div>
-          `).join("")}
+        <div id="recommendations-content">
+           <p class="card-text">Loading recommendations...</p>
         </div>
-      </div>
-    ` : `
-      <div id="recommendations-section" class="recommendations-section">
-        <h3>Recommended Patches & Remediation</h3>
-        <p class="card-text">No vulnerabilities in this report; no recommendations to show.</p>
       </div>
     `;
 
@@ -454,18 +439,123 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     const patchBtn = document.getElementById("patch-btn");
     if (patchBtn) {
-      patchBtn.onclick = () => {
+      // Logic for Model 7 async generation
+      let isRecommendationsVisible = false;
+      let hasGenerated = false;
+
+      patchBtn.onclick = async () => {
         const recSection = document.getElementById("recommendations-section");
-        if (recSection) {
+        const recContent = document.getElementById("recommendations-content");
+
+        // Toggle hide if already generated and visible
+        if (isRecommendationsVisible) {
+          recSection.style.display = "none";
+          patchBtn.textContent = "Show Recommendation";
+          isRecommendationsVisible = false;
+          return;
+        }
+
+        // Show if already generated but hidden
+        if (hasGenerated) {
           recSection.style.display = "block";
+          patchBtn.textContent = "Hide Recommendation";
+          isRecommendationsVisible = true;
           recSection.scrollIntoView({ behavior: "smooth", block: "start" });
+          return;
+        }
+
+        // --- Execute Model 7 Endpoint ---
+        patchBtn.textContent = "Loading...";
+        patchBtn.disabled = true;
+        recSection.style.display = "block";
+        recContent.innerHTML = "<p class='card-text'>Generating intelligent recommendations... please wait.</p>";
+        recSection.scrollIntoView({ behavior: "smooth", block: "start" });
+
+        try {
+          const payload = {};
+          if (reportId) payload.report_id = reportId;
+          if (domain) payload.domain = domain;
+
+          const recResp = await fetch("http://localhost:5000/generate_recommendations", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+
+          if (!recResp.ok) throw new Error("Failed to generate recommendations");
+
+          const recData = await recResp.json();
+          const recArray = recData.recommendations || [];
+
+          if (recArray.length === 0) {
+            recContent.innerHTML = "<p class='card-text'>No vulnerabilities in this report; no recommendations to show.</p>";
+          } else {
+            recContent.innerHTML = `
+              <div class="recommendation-cards">
+                ${recArray.map(rec => {
+              let remList = "";
+              if (Array.isArray(rec.remediation)) {
+                remList = "<ul>" + rec.remediation.map(step => `<li>${step}</li>`).join("") + "</ul>";
+              } else {
+                remList = rec.remediation || "—";
+              }
+
+              let refListHTML = "";
+              if (Array.isArray(rec.references) && rec.references.length > 0) {
+                refListHTML = `<div class="rec-row" style="margin-top: 10px;"><strong>References:</strong><ul style="margin: 5px 0; padding-left: 20px;">` +
+                  rec.references.map(u => `<li><a href="${u}" target="_blank" rel="noopener">${u}</a></li>`).join("") +
+                  `</ul></div>`;
+              }
+
+              return `
+                  <div class="recommendation-card card">
+                    <div class="rec-row" style="display:flex; justify-content:space-between;">
+                        <span><strong>CVE:</strong> ${rec.cve_id || "N/A"}</span>
+                        <span class="risk-badge ${(rec.severity || rec.risk_level || "unknown").toLowerCase()}">${rec.priority || rec.severity || "Unknown"}</span>
+                    </div>
+                    <div class="rec-row" style="margin-top: 5px;"><strong>Service & Port:</strong> ${rec.service || "N/A"} (Port ${rec.port !== undefined && rec.port !== null ? rec.port : "N/A"})</div>
+                    <div class="rec-row" style="margin-top: 10px; font-style: italic;"><strong>Explanation:</strong> ${rec.explanation || "—"}</div>
+                    <div class="rec-row" style="margin-top: 5px; font-style: italic; color: #f87171;"><strong>Attacker Perspective:</strong> ${rec.attacker_perspective || "—"}</div>
+                    <div class="rec-row rec-remediation" style="margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px;">
+                        <strong>Actionable Remediation:</strong><br>${remList}
+                    </div>
+                    ${refListHTML}
+                    <div class="rec-row" style="margin-top: 15px;">
+                        <a href="/download_fix_script?cve_id=${encodeURIComponent(rec.cve_id || "N/A")}&service=${encodeURIComponent(rec.service || "")}&port=${encodeURIComponent(rec.port || "")}&host=${encodeURIComponent(rec.host || "")}" class="btn btn-sm btn-outline-info download-fix-btn">Download Fix Script</a>
+                    </div>
+                  </div>
+                `}).join("")}
+              </div>
+            `;
+          }
+
+          hasGenerated = true;
+          isRecommendationsVisible = true;
+          patchBtn.textContent = "Hide Recommendation";
+          patchBtn.disabled = false;
+
+        } catch (error) {
+          console.error(error);
+          recContent.innerHTML = `<p style="color:red;">Error loading recommendations: ${error.message}</p>`;
+          patchBtn.textContent = "Show Recommendation";
+          patchBtn.disabled = false;
         }
       };
+
+      const downloadBtn = document.getElementById("download-btn");
+      if (downloadBtn) {
+        downloadBtn.onclick = () => {
+          let url = "/download_report?";
+          if (reportId) url += `report_id=${encodeURIComponent(reportId)}`;
+          else if (domain) url += `domain=${encodeURIComponent(domain)}`;
+          window.location.href = url;
+        };
+      }
     }
 
   } catch (err) {
     console.error(err);
     reportContent.innerHTML =
-      `<p style="color:red;">Error loading report: ${err.message}</p>`;
+      `< p style = "color:red;" > Error loading report: ${err.message}</p > `;
   }
 });

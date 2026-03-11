@@ -275,23 +275,35 @@ class NVDApiClient:
             # Extract published date
             published_date = cve_item.get("published", "")
             
+            # Extract references
+            references_data = cve_item.get("references", [])
+            references = [ref.get("url") for ref in references_data if ref.get("url")]
+            
             # Extract metrics (CVSS scores)
             metrics = cve_item.get("metrics", {})
             severity = "UNKNOWN"
             cvss_score = 0.0
+            attack_vector = "UNKNOWN"
+            attack_complexity = "UNKNOWN"
             
             # Try CVSS v3.1 first, then v3.0, then v2.0
             if "cvssMetricV31" in metrics and len(metrics["cvssMetricV31"]) > 0:
                 cvss_data = metrics["cvssMetricV31"][0].get("cvssData", {})
                 cvss_score = cvss_data.get("baseScore", 0.0)
                 severity = cvss_data.get("baseSeverity", "UNKNOWN")
+                attack_vector = cvss_data.get("attackVector", "UNKNOWN")
+                attack_complexity = cvss_data.get("attackComplexity", "UNKNOWN")
             elif "cvssMetricV30" in metrics and len(metrics["cvssMetricV30"]) > 0:
                 cvss_data = metrics["cvssMetricV30"][0].get("cvssData", {})
                 cvss_score = cvss_data.get("baseScore", 0.0)
                 severity = cvss_data.get("baseSeverity", "UNKNOWN")
+                attack_vector = cvss_data.get("attackVector", "UNKNOWN")
+                attack_complexity = cvss_data.get("attackComplexity", "UNKNOWN")
             elif "cvssMetricV2" in metrics and len(metrics["cvssMetricV2"]) > 0:
                 cvss_data = metrics["cvssMetricV2"][0].get("cvssData", {})
                 cvss_score = cvss_data.get("baseScore", 0.0)
+                attack_vector = cvss_data.get("accessVector", "UNKNOWN")
+                attack_complexity = cvss_data.get("accessComplexity", "UNKNOWN")
                 # Map v2 severity
                 if cvss_score >= 7.0:
                     severity = "HIGH"
@@ -315,7 +327,10 @@ class NVDApiClient:
                 "published_date": published_date,
                 "severity": severity,
                 "cvss_score": cvss_score,
-                "cwe": cwe
+                "cwe": cwe,
+                "attack_vector": attack_vector,
+                "attack_complexity": attack_complexity,
+                "references": references
             })
         
         df = pd.DataFrame(cve_records)
