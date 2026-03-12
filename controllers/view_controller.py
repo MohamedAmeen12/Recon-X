@@ -55,6 +55,12 @@ def report_page():
 def history_page():
     return render_template("history.html")
 
+@view_bp.route("/ai-assistant")
+@view_bp.route("/ai-assistant.html")
+@login_required
+def ai_assistant_page():
+    return render_template("ai_assistant.html")
+
 @view_bp.route("/admin")
 @admin_required
 def admin_page():

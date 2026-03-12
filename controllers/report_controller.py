@@ -8,12 +8,7 @@ from flask import request, jsonify, Blueprint, session, make_response
 from middlewares.auth_middleware import login_required
 from bson.objectid import ObjectId
 from utils.audit_logger import log_audit_event
-from config.database import (
-    reports_collection,
-    technologies_collection,
-    vulnerabilities_collection,
-    recommendations_collection,
-)
+import config.database as db
 
 # ==============================
 # MODEL 5 IMPORTS
@@ -49,8 +44,8 @@ def enrich_report_data(record):
     # 1. Technology Fingerprint Fallback
     if not result.get("technology_fingerprints"):
         try:
-            technologies = list(technologies_collection.find({"domain": domain}, {"_id": 0}).sort("scanned_at", -1))
-            vulnerabilities = list(vulnerabilities_collection.find({"domain": domain}, {"_id": 0}).sort("cvss_score", -1))
+            technologies = list(db.technologies_collection.find({"domain": domain}, {"_id": 0}).sort("scanned_at", -1))
+            vulnerabilities = list(db.vulnerabilities_collection.find({"domain": domain}, {"_id": 0}).sort("cvss_score", -1))
             
             tech_by_url = {}
             for tech in technologies:
@@ -126,7 +121,7 @@ def enrich_report_data(record):
     # 4. Model 7 (Recommendations) - Try to fetch from DB if missing in result
     if not result.get("recommendations"):
         try:
-            recs = list(recommendations_collection.find({"report_id": str(record["_id"])}, {"_id": 0}))
+            recs = list(db.recommendations_collection.find({"report_id": str(record["_id"])}, {"_id": 0}))
             if recs:
                 result["recommendations"] = recs
         except Exception as e:
@@ -143,12 +138,12 @@ def get_technologies():
         return jsonify({"error": "Domain is required"}), 400
     
     try:
-        technologies = list(technologies_collection.find(
+        technologies = list(db.technologies_collection.find(
             {"domain": domain},
             {"_id": 0}
         ).sort("scanned_at", -1))
         
-        vulnerabilities = list(vulnerabilities_collection.find(
+        vulnerabilities = list(db.vulnerabilities_collection.find(
             {"domain": domain},
             {"_id": 0}
         ).sort("cvss_score", -1))
@@ -179,7 +174,7 @@ def get_report():
     # 2. FETCH BY ID
     if report_id:
         try:
-            record = reports_collection.find_one({"_id": ObjectId(report_id)})
+            record = db.reports_collection.find_one({"_id": ObjectId(report_id)})
         except:
             return jsonify({"error": "Invalid Report ID"}), 400
 
@@ -188,12 +183,12 @@ def get_report():
         # If admin, just get the latest global report (or specific user's logic? For now, latest owned by anyone or maybe just latest scan on that domain)
         # But requirement says "see only their scan" for users.
         if is_admin:
-             record = reports_collection.find_one(
+             record = db.reports_collection.find_one(
                 {"domain": domain},
                 sort=[("scanned_at", -1)]
              )
         else:
-            record = reports_collection.find_one(
+            record = db.reports_collection.find_one(
                 {"domain": domain, "user_id": current_user_id},
                 sort=[("scanned_at", -1)]
             )
@@ -274,17 +269,17 @@ def generate_recommendations():
 
     if report_id:
         try:
-            record = reports_collection.find_one({"_id": ObjectId(report_id)})
+            record = db.reports_collection.find_one({"_id": ObjectId(report_id)})
         except:
             return jsonify({"error": "Invalid Report ID"}), 400
     elif domain:
         if is_admin:
-             record = reports_collection.find_one(
+             record = db.reports_collection.find_one(
                 {"domain": domain},
                 sort=[("scanned_at", -1)]
              )
         else:
-            record = reports_collection.find_one(
+            record = db.reports_collection.find_one(
                 {"domain": domain, "user_id": current_user_id},
                 sort=[("scanned_at", -1)]
             )
@@ -320,7 +315,7 @@ def generate_recommendations():
             doc["domain"] = domain_str
             doc["created_at"] = datetime.datetime.utcnow()
             try: # Use upsert safely if re-running
-                recommendations_collection.update_one(
+                db.recommendations_collection.update_one(
                     {"report_id": report_id_str, "cve_id": rec.get("cve_id"), "service": rec.get("service"), "port": rec.get("port")},
                     {"$set": doc},
                     upsert=True
@@ -329,7 +324,7 @@ def generate_recommendations():
                 print(f"[Model 7] MongoDB insert warning: {e}")
 
         # Update the report record itself with the recommendations so future get_report could potentially see it
-        reports_collection.update_one(
+        db.reports_collection.update_one(
             {"_id": record["_id"]},
             {"$set": {"result.recommendations": recommendations}}
         )
@@ -393,9 +388,9 @@ def download_report():
 
     try:
         if report_id:
-            record = reports_collection.find_one({"_id": ObjectId(report_id)})
+            record = db.reports_collection.find_one({"_id": ObjectId(report_id)})
         elif domain:
-            record = reports_collection.find_one(
+            record = db.reports_collection.find_one(
                 {"domain": domain},
                 sort=[("scanned_at", -1)]
             )

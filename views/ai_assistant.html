@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ReconX | AI Security Assistant</title>
+    <link rel="stylesheet" href="/static/css/home.css">
+    <link rel="stylesheet" href="/static/css/ai_assistant.css">
+    <link rel="stylesheet" href="/static/css/darkmode.css">
+</head>
+
+<body>
+    <!-- Background Overlay -->
+    <div class="bg-overlay"></div>
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <a href="/home" class="sidebar-item">Dashboard</a>
+        <a href="/scan" class="sidebar-item">Scan</a>
+        <a href="/history" class="sidebar-item">History</a>
+        <a href="/ai-assistant" class="sidebar-item active">AI Security Assistant</a>
+        <a href="/home#analytics" class="sidebar-item">Analytics</a>
+        <div class="sidebar-footer">
+            <a href="javascript:void(0)" onclick="logout()" class="sidebar-item logout">Logout</a>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="content">
+        <div class="ai-container">
+            <div class="ai-header">
+                <h1>ReconX AI Security Assistant</h1>
+                <p>Understand your scan results through intelligent analysis.</p>
+            </div>
+
+            <!-- Step 1: Select Scan -->
+            <div class="scan-selector-card">
+                <label for="scan-select">Select Scan History:</label>
+                <select id="scan-select">
+                    <option value="">-- Choose a recent scan --</option>
+                </select>
+            </div>
+
+            <!-- Step 2: Chat Interface -->
+            <div id="chat-section" class="chat-wrapper" style="display: none;">
+                <div class="selected-info">
+                    Scanning target: <span id="selected-domain">none</span>
+                </div>
+
+                <div class="quick-questions">
+                    <button class="quick-btn" onclick="askAI('summarize')">📋 Summarize report</button>
+                    <button class="quick-btn" onclick="askAI('score')">🛡️ Rate website security</button>
+                    <button class="quick-btn" onclick="askAI('prioritize')">🚀 What should we fix first?</button>
+                    <button class="quick-btn" onclick="askAI('biggest_risk')">⚠️ Explain the biggest security
+                        risk</button>
+                </div>
+
+                <div class="chat-window" id="chat-window">
+                    <div class="message ai-message">
+                        Hello! I am your ReconX AI Security Assistant. Select a scan above and ask me anything about the
+                        results.
+                    </div>
+                </div>
+
+                <div class="chat-input-area">
+                    <input type="text" id="user-input"
+                        placeholder="Type a custom question (e.g., 'What vulnerabilities affect PHP?')..."
+                        onkeypress="handleKey(event)">
+                    <button id="send-btn" onclick="askCustom()">Send</button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="/static/js/auth.js"></script>
+    <script src="/static/js/ai_assistant.js"></script>
+    <script src="/static/js/darkmode.js"></script>
+</body>
+
+</html>

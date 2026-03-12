@@ -49,12 +49,14 @@ from controllers.auth_controller import auth_bp
 from controllers.scan_controller import scan_bp
 from controllers.report_controller import report_bp
 from controllers.admin_controller import admin_bp
+from controllers.ai_controller import ai_bp
 
 app.register_blueprint(view_bp)
 app.register_blueprint(auth_bp)
 app.register_blueprint(scan_bp)
 app.register_blueprint(report_bp)
 app.register_blueprint(admin_bp)
+app.register_blueprint(ai_bp)
 
 # ====================================================
 # MAIN
