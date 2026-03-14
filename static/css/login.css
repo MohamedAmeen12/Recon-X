@@ -91,6 +91,7 @@ body {
 
   background: rgba(255,255,255,0.08);
   color: white;
+  box-sizing: border-box;
 
   font-size: 1rem;
   outline: none;
@@ -108,8 +109,45 @@ body {
     inset 0 0 8px rgba(255,255,255,0.2);
 }
 
+/* PASSWORD WRAPPER ENHANCEMENT */
+.password-wrapper {
+  position: relative;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.card .password-wrapper input {
+  padding-right: 48px;
+}
+
+.eye-toggle {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  color: #a0a0a0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+  box-shadow: none !important;
+  width: auto;
+  z-index: 2;
+  margin-top: -9px; /* adjust for bottom margin of input */
+}
+
+.eye-toggle:hover {
+  color: #fff;
+  background: none;
+  box-shadow: none !important;
+}
+
 /* === LOGIN BUTTON === */
-.card button {
+.card button[type="submit"] {
   width: 100%;
   padding: 14px;
 
@@ -130,7 +168,7 @@ body {
   transition: 0.25s;
 }
 
-.card button:hover {
+.card button[type="submit"]:hover {
   background: #e6e6e6;
   box-shadow:
     0 0 20px rgba(255,255,255,0.7),

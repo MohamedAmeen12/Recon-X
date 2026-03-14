@@ -101,6 +101,7 @@ textarea.text-input {
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.35);
   border-radius: 8px;
+  box-sizing: border-box;
 
   color: white;
   font-size: 1rem;
@@ -147,35 +148,129 @@ textarea.text-input {
   color: #d0d0d0;
 }
 
+/* === Password Enhancements (Added back) === */
+.password-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.password-wrapper input {
+  padding-right: 44px; /* Room for the eye icon */
+}
+
+.eye-toggle {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  color: #a0a0a0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+  box-shadow: none !important;
+  width: auto;
+  z-index: 2;
+}
+
+.eye-toggle:hover {
+  color: #fff;
+  background: none;
+  box-shadow: none !important;
+}
+
+/* Password Strength Meter */
+.password-strength-container {
+  text-align: left;
+  margin: -5px 0 15px 0;
+  animation: fadeIn 0.3s;
+}
+
+.password-strength-bar {
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+
+.strength-fill {
+  height: 100%;
+  width: 0%;
+  transition: width 0.4s ease, background-color 0.4s ease;
+  border-radius: 4px;
+}
+
+.strength-weak { background-color: #ff4d4d; }
+.strength-medium { background-color: #fbbf24; }
+.strength-strong { background-color: #4ade80; }
+
+.strength-label {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #a0a0a0;
+  text-align: right;
+  display: block;
+}
+
 /* === Password Requirements === */
 .password-requirements {
   text-align: left;
   margin-top: 0px;
   margin-bottom: 15px;
   background: rgba(0, 0, 0, 0.4);
-  padding: 10px 14px;
+  padding: 12px 16px;
   border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   display: block;
 }
 
 .password-requirements p {
-  margin: 5px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
   font-size: 0.85rem;
   font-weight: 500;
   transition: color 0.3s ease;
 }
 
+.req-icon {
+  font-weight: bold;
+  font-size: 0.9rem;
+}
+
 .password-requirements p.invalid {
+  color: #a0a0a0;
+}
+.password-requirements p.invalid .req-icon {
   color: #ff4d4d;
 }
 
 .password-requirements p.valid {
+  color: #e5e5e5;
+}
+.password-requirements p.valid .req-icon {
   color: #4ade80;
 }
 
+/* Match Feedback */
+.match-feedback {
+  text-align: left;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin: -5px 0 15px 4px;
+  min-height: 18px;
+  transition: color 0.3s;
+}
+
 /* === Button — White Neon Style === */
-button {
+button[type="submit"] {
   width: 100%;
   padding: 14px;
 
@@ -195,7 +290,7 @@ button {
   transition: 0.3s;
 }
 
-button:hover {
+button[type="submit"]:hover {
   background: #e6e6e6;
   box-shadow:
     0 0 18px rgba(255, 255, 255, 0.7),

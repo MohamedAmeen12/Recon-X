@@ -62,6 +62,16 @@ app.register_blueprint(ai_bp)
 # MAIN
 # ====================================================
 if __name__ == "__main__":
+    # Prevent [WinError 10038] "An operation was attempted on something that is not a socket"
+    # which frequently happens during Werkzeug development server shutdown on Windows.
+    import threading
+    _original_excepthook = threading.excepthook
+    def _patch_winerror_10038(args):
+        if issubclass(args.exc_type, OSError) and "[WinError 10038]" in str(args.exc_value):
+            return
+        _original_excepthook(args)
+    threading.excepthook = _patch_winerror_10038
+
     print("=" * 60)
     print("[*] Starting ReconX Flask Server...")
     print("=" * 60)
