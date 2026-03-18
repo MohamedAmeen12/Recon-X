@@ -16,7 +16,8 @@ document.addEventListener("DOMContentLoaded", () => {
   resultsContainer.style.boxShadow = "0 3px 10px rgba(0,0,0,0.1)";
   resultsContainer.style.display = "none";
 
-  document.querySelector(".scan-container").appendChild(resultsContainer);
+  const formParent = form ? form.parentNode : document.body;
+  if(formParent) formParent.appendChild(resultsContainer);
 
   function showMessage(msg, isError = false) {
     resultsContainer.style.display = "block";

@@ -1,52 +1,53 @@
-<!DOCTYPE html>
-<html lang="en">
+{% extends 'partials/layout.html' %}
+{% set active_page = 'scan' %}
 
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ReconX | Scan</title>
-  <link rel="stylesheet" href="/static/css/scan.css">
-</head>
+{% block title %}ReconX | Target Scan{% endblock %}
 
-<body>
+{% block header_title %}
+<h2 class="text-lg font-semibold text-gray-800 dark:text-gray-100 hidden sm:block">Scan Engine</h2>
+{% endblock %}
 
-  <!-- Dark Overlay -->
-  <div class="bg-overlay"></div>
+{% block content %}
+<div class="max-w-3xl mx-auto w-full pt-4">
+  <div class="glass-card p-8 md:p-12 relative overflow-hidden animate-slide-up">
+    <!-- bg flair -->
+    <div class="absolute top-0 right-0 -mr-16 -mt-16 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
+    <div class="absolute bottom-0 left-0 -ml-16 -mb-16 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl pointer-events-none"></div>
 
-  <!-- Sidebar -->
-  <aside class="sidebar">
-    <a href="/home">Dashboard</a>
-    <a href="/scan" class="active">Scan</a>
-    <a href="/history">History</a>
-    <a href="/ai-assistant">AI Assistant</a>
-    <a href="/home#analytics">Analytics</a>
-    <a href="/report">Reports</a>
-    <a href="javascript:void(0)" onclick="logout()" class="logout">Logout</a>
+    <div class="relative z-10 flex flex-col items-center text-center">
+      <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-cyber-accent to-emerald-400 text-white flex items-center justify-center text-3xl shadow-lg mb-6">
+        <i class="ph-bold ph-radar"></i>
+      </div>
+      
+      <h1 class="text-2xl md:text-3xl font-bold mb-3 tracking-tight">Initialize Target Scan</h1>
+      <p class="text-gray-500 dark:text-gray-400 text-sm md:text-base max-w-lg mb-8 leading-relaxed">
+        Select an authorized domain registered to your account to execute our AI-driven vulnerability assessment and footprint engine.
+      </p>
 
-  </aside>
+      <form class="scan-form w-full max-w-md space-y-5">
+        <div class="text-left w-full space-y-1.5">
+          <label for="domain-select" class="text-sm font-semibold text-gray-700 dark:text-gray-300">Target Domain</label>
+          <div class="relative">
+            <i class="ph ph-globe absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-lg"></i>
+            <select id="domain-select" required class="form-input pl-11 h-12">
+              <option value="">Loading your domains...</option>
+            </select>
+          </div>
+        </div>
+        
+        <button type="submit" id="scan-btn" class="w-full flex items-center justify-center gap-2 h-12 rounded-xl bg-gradient-to-r from-cyber-accent to-emerald-400 text-white font-semibold shadow-lg shadow-emerald-500/30 hover:shadow-emerald-500/50 hover:-translate-y-0.5 transition-all text-sm tracking-wide mt-2 btn-glow">
+          <i class="ph-bold ph-rocket-launch text-lg"></i> Execute Scan
+        </button>
+      </form>
+    </div>
+  </div>
+  
+  <div class="mt-8 text-center text-xs text-gray-400 dark:text-gray-500 flex items-center justify-center gap-2 animate-fade-in">
+    <i class="ph-fill ph-lock-key"></i> Authorized target scanning enforces strict RBAC validation.
+  </div>
+</div>
+{% endblock %}
 
-  <!-- Main Content -->
-  <main class="scan-container">
-    <h1>Select a Domain to Scan</h1>
-    <p class="subtext">Choose one of the domains registered to your account.<br>
-      Our AI engine will perform advanced reconnaissance.</p>
-
-    <form class="scan-form">
-      <select id="domain-select" required>
-        <option value="">Loading your domains...</option>
-      </select>
-      <button type="submit" id="scan-btn">Start Scan</button>
-    </form>
-
-  </main>
-
-  <!-- Footer -->
-  <footer class="footer">
-    © 2025 ReconX — Empowering defenders with AI-driven reconnaissance.
-  </footer>
-
-  <script src="/static/js/scan.js"></script>
-  <script src="/static/js/auth.js"></script>
-</body>
-
-</html>
+{% block scripts %}
+<script src="/static/js/scan.js"></script>
+{% endblock %}

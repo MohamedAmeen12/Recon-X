@@ -1,19 +1,18 @@
- const toggleBtn = document.getElementById("darkModeToggle");
+const toggleBtn = document.getElementById("darkModeToggle");
 
-    // Load saved theme
-    if (localStorage.getItem("theme") === "dark") {
-        document.body.classList.add("dark-mode");
-        toggleBtn.textContent = "☀️";
-    }
+// Load saved theme
+if (localStorage.getItem("theme") === "dark") {
+    document.documentElement.classList.add("dark");
+}
 
+if (toggleBtn) {
     toggleBtn.addEventListener("click", () => {
-        document.body.classList.toggle("dark-mode");
+        document.documentElement.classList.toggle("dark");
 
-        if (document.body.classList.contains("dark-mode")) {
+        if (document.documentElement.classList.contains("dark")) {
             localStorage.setItem("theme", "dark");
-            toggleBtn.textContent = "☀️";
         } else {
             localStorage.setItem("theme", "light");
-            toggleBtn.textContent = "🌙";
         }
     });
+}

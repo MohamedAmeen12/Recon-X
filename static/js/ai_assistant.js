@@ -42,16 +42,19 @@ async function loadScanHistory() {
             scanSelect.appendChild(opt);
         });
 
-        // After loading, check if something is already selected (e.g. browser restored state)
         if (scanSelect.value) {
             currentReportId = scanSelect.value;
             selectedDomainSpan.textContent = scanSelect.options[scanSelect.selectedIndex].text.split(' — ')[0];
-            chatSection.style.display = 'flex'; // Ensure chat section is visible if a scan is pre-selected
-            // Also, initialize the chat window with the AI's greeting for the pre-selected domain
+            chatSection.classList.remove('hidden');
+            chatSection.classList.add('flex');
+            document.getElementById('ai-empty-state')?.classList.add('hidden');
+            
             chatWindow.innerHTML = `
                 <div class="message ai-message">
-                    I've loaded the results for <strong>${selectedDomainSpan.textContent}</strong>. 
-                    What would you like to know? You can click the quick questions above or type your own.
+                    <div class="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-white flex-shrink-0">
+                      <i class="ph-bold ph-robot"></i>
+                    </div>
+                    <div class="msg-bubble">I've loaded the results for <strong>${selectedDomainSpan.textContent}</strong>. What would you like to know? You can click the quick questions above or type your own.</div>
                 </div>
             `;
         }
@@ -61,12 +64,14 @@ async function loadScanHistory() {
     }
 }
 
-// 2. Handle Selection Change
+// 2. Handle Selection Change (already handled cleanly in inline HTML script, but fallback here)
 scanSelect.addEventListener('change', (e) => {
     const reportId = e.target.value;
     if (reportId) {
         currentReportId = reportId;
-        chatSection.style.display = 'flex';
+        chatSection.classList.remove('hidden');
+        chatSection.classList.add('flex');
+        document.getElementById('ai-empty-state')?.classList.add('hidden');
 
         // Update domain info
         const text = e.target.options[e.target.selectedIndex].text;
@@ -75,12 +80,16 @@ scanSelect.addEventListener('change', (e) => {
         // Reset chat
         chatWindow.innerHTML = `
             <div class="message ai-message">
-                I've loaded the results for <strong>${selectedDomainSpan.textContent}</strong>. 
-                What would you like to know? You can click the quick questions above or type your own.
+                <div class="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-white flex-shrink-0">
+                  <i class="ph-bold ph-robot"></i>
+                </div>
+                <div class="msg-bubble">I've loaded the results for <strong>${selectedDomainSpan.textContent}</strong>. What would you like to know? You can click the quick questions above or type your own.</div>
             </div>
         `;
     } else {
-        chatSection.style.display = 'none';
+        chatSection.classList.add('hidden');
+        chatSection.classList.remove('flex');
+        document.getElementById('ai-empty-state')?.classList.remove('hidden');
         currentReportId = '';
     }
 });
@@ -176,11 +185,28 @@ function addMessage(text, sender) {
     const div = document.createElement('div');
     div.className = `message ${sender}-message`;
 
-    // Responses are now plain text per requirements
-    div.textContent = text;
+    if (sender === 'user') {
+        div.innerHTML = `<div class="msg-bubble">${escapeHtml(text)}</div>`;
+    } else {
+        div.innerHTML = `
+            <div class="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-white flex-shrink-0">
+                <i class="ph-bold ph-robot"></i>
+            </div>
+            <div class="msg-bubble relative break-words dark:text-gray-200">${text.includes('<') ? text : escapeHtml(text)}</div>
+        `;
+    }
 
     chatWindow.appendChild(div);
     chatWindow.scrollTop = chatWindow.scrollHeight;
+}
+
+function escapeHtml(unsafe) {
+    return (unsafe || "").toString()
+         .replace(/&/g, "&amp;")
+         .replace(/</g, "&lt;")
+         .replace(/>/g, "&gt;")
+         .replace(/"/g, "&quot;")
+         .replace(/'/g, "&#039;");
 }
 
 function showTyping() {
@@ -188,7 +214,14 @@ function showTyping() {
     const div = document.createElement('div');
     div.id = id;
     div.className = 'message ai-message';
-    div.innerHTML = 'AI is thinking<span class="loading-dots"></span>';
+    div.innerHTML = `
+        <div class="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-white flex-shrink-0">
+            <i class="ph-bold ph-robot"></i>
+        </div>
+        <div class="msg-bubble flex items-center gap-2 text-gray-400">
+            AI is thinking <i class="ph ph-spinner-gap animate-spin"></i>
+        </div>
+    `;
     chatWindow.appendChild(div);
     chatWindow.scrollTop = chatWindow.scrollHeight;
 

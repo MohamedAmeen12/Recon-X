@@ -14,80 +14,36 @@ document.addEventListener("DOMContentLoaded", async () => {
      VALIDATION
   =============================== */
   if (!domain && !reportId) {
-    reportContent.innerHTML = "<p style='color:red;'>No report specified!</p>";
+    reportContent.innerHTML = `
+      <div class="glass-card p-8 flex flex-col justify-center items-center text-center">
+        <i class="ph ph-warning-circle text-4xl text-red-500 mb-4"></i>
+        <h3 class="text-xl font-bold mb-2">No Report Specified</h3>
+        <p class="text-gray-500">Please provide a valid domain or report ID to view the assessment.</p>
+      </div>`;
     return;
   }
 
-  domainTitle.textContent = `Domain: ${domain}`;
-  reportContent.innerHTML = "<p>Loading report…</p>";
+  domainTitle.textContent = domain ? `${domain}` : "Loading Target...";
 
   /* ===============================
-     CHART HELPERS
+     HELPERS
   =============================== */
-  function renderPie(canvasId, data) {
-    if (!data || !Object.keys(data).length) return;
-    const el = document.getElementById(canvasId);
-    if (!el) return;
-
-    if (chartRegistry[canvasId]) {
-      chartRegistry[canvasId].destroy();
-    }
-
-    chartRegistry[canvasId] = new Chart(el, {
-      type: "doughnut",
-      data: {
-        labels: Object.keys(data),
-        datasets: [{
-          data: Object.values(data),
-          backgroundColor: [
-            "#3b82f6",
-            "#10b981",
-            "#f59e0b",
-            "#ef4444",
-            "#8b5cf6",
-            "#14b8a6"
-          ],
-          borderWidth: 0
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { position: "bottom" }
-        }
-      }
-    });
+  function getSeverityColor(sevStr) {
+    const s = sevStr ? sevStr.toLowerCase() : '';
+    if (s.includes('critical')) return 'text-red-500 bg-red-500/10 border-red-500/20';
+    if (s.includes('high')) return 'text-orange-500 bg-orange-500/10 border-orange-500/20';
+    if (s.includes('medium')) return 'text-yellow-500 bg-yellow-500/10 border-yellow-500/20';
+    if (s.includes('low')) return 'text-green-500 bg-green-500/10 border-green-500/20';
+    return 'text-gray-400 bg-gray-500/10 border-gray-500/20';
   }
 
-  function renderBar(canvasId, data) {
-    if (!data || !Object.keys(data).length) return;
-    const el = document.getElementById(canvasId);
-    if (!el) return;
-
-    if (chartRegistry[canvasId]) {
-      chartRegistry[canvasId].destroy();
-    }
-
-    chartRegistry[canvasId] = new Chart(el, {
-      type: "bar",
-      data: {
-        labels: Object.keys(data),
-        datasets: [{
-          data: Object.values(data),
-          backgroundColor: "#3b82f6",
-          borderRadius: 6
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: {
-          y: { beginAtZero: true }
-        }
-      }
-    });
+  function getRiskDot(severity) {
+    const s = severity ? severity.toLowerCase() : '';
+    if (s.includes('critical')) return '<div class="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse"></div>';
+    if (s.includes('high')) return '<div class="w-2.5 h-2.5 rounded-full bg-orange-500"></div>';
+    if (s.includes('medium')) return '<div class="w-2.5 h-2.5 rounded-full bg-yellow-500"></div>';
+    if (s.includes('low')) return '<div class="w-2.5 h-2.5 rounded-full bg-green-500"></div>';
+    return '<div class="w-2.5 h-2.5 rounded-full bg-gray-400"></div>';
   }
 
   /* ===============================
@@ -96,379 +52,420 @@ document.addEventListener("DOMContentLoaded", async () => {
   try {
     let fetchUrl = "";
     if (reportId) {
-      fetchUrl = `http://localhost:5000/get_report?report_id=${encodeURIComponent(reportId)}`;
+      fetchUrl = `/get_report?report_id=${encodeURIComponent(reportId)}`;
     } else {
-      fetchUrl = `http://localhost:5000/get_report?domain=${encodeURIComponent(domain)}`;
+      fetchUrl = `/get_report?domain=${encodeURIComponent(domain)}`;
     }
 
     const resp = await fetch(fetchUrl);
     if (resp.status === 401 || resp.status === 403) {
-      reportContent.innerHTML = "<p style='color:red;'>Unauthorized. Please login to view this report.</p>";
+      reportContent.innerHTML = `
+        <div class="glass-card p-8 flex flex-col justify-center items-center text-center">
+          <i class="ph ph-lock-key text-4xl text-orange-500 mb-4"></i>
+          <h3 class="text-xl font-bold mb-2">Unauthorized</h3>
+          <p class="text-gray-500">You must be logged in to view this intelligence report.</p>
+        </div>`;
       return;
     }
     if (!resp.ok) throw new Error("Failed to load report");
 
     const data = await resp.json();
 
-    // ✅ FIX: Update domain title from backend data if URL param is missing
     if (data.domain) {
-      domainTitle.textContent = `Domain: ${data.domain}`;
+      domainTitle.textContent = `${data.domain}`;
     }
 
     if (!data.result) {
-      reportContent.innerHTML = "<p>No report data found.</p>";
+      reportContent.innerHTML = `
+        <div class="glass-card p-12 flex flex-col justify-center items-center text-center">
+          <div class="w-20 h-20 bg-gray-100 dark:bg-white/5 rounded-full flex items-center justify-center text-4xl text-gray-400 mb-6">
+            <i class="ph-bold ph-shield-slash"></i>
+          </div>
+          <h3 class="text-xl font-bold mb-2">No Report Found</h3>
+          <p class="text-gray-500">No active vulnerability assessment found for this target.</p>
+        </div>`;
       return;
     }
 
     const r = data.result;
 
     /* ===============================
-       MODEL 1 – CLUSTERS
+       METRICS CALCULATION
+    =============================== */
+    const totalSubdomains = r.raw_docs ? r.raw_docs.length : 0;
+    const model6Data = r.model6 || [];
+    const totalVulnerabilities = model6Data.length;
+    
+    let criticalCount = 0;
+    let highCount = 0;
+
+    model6Data.forEach(vuln => {
+        const severity = (vuln.risk_level || "").toLowerCase();
+        if (severity === 'critical') criticalCount++;
+        else if (severity === 'high') highCount++;
+    });
+
+    /* ===============================
+       1. SUMMARY CARDS
+    =============================== */
+    const summaryCardsHTML = `
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6 mb-8">
+        <!-- Subdomains -->
+        <div class="glass-card p-5 flex flex-col justify-between relative overflow-hidden group">
+          <div class="absolute right-0 top-0 w-24 h-24 bg-blue-500/5 rounded-bl-full group-hover:bg-blue-500/10 transition-colors"></div>
+          <div class="flex items-start justify-between mb-2">
+            <div class="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-500/10 flex items-center justify-center text-blue-600 text-xl shadow-sm">
+              <i class="ph-fill ph-target"></i>
+            </div>
+          </div>
+          <div class="mt-2 text-3xl font-bold">${totalSubdomains}</div>
+          <div class="text-gray-500 dark:text-gray-400 text-xs font-semibold uppercase tracking-wider mt-1">Total Subdomains</div>
+        </div>
+        
+        <!-- Total Vulns -->
+        <div class="glass-card p-5 flex flex-col justify-between relative overflow-hidden group">
+          <div class="absolute right-0 top-0 w-24 h-24 bg-purple-500/5 rounded-bl-full group-hover:bg-purple-500/10 transition-colors"></div>
+          <div class="flex items-start justify-between mb-2">
+            <div class="w-10 h-10 rounded-xl bg-purple-100 dark:bg-purple-500/10 flex items-center justify-center text-purple-600 text-xl shadow-sm">
+              <i class="ph-fill ph-bug"></i>
+            </div>
+          </div>
+          <div class="mt-2 text-3xl font-bold">${totalVulnerabilities}</div>
+          <div class="text-gray-500 dark:text-gray-400 text-xs font-semibold uppercase tracking-wider mt-1">Vulnerabilities Found</div>
+        </div>
+
+        <!-- Critical -->
+        <div class="glass-card p-5 flex flex-col justify-between relative overflow-hidden group">
+          <div class="absolute right-0 top-0 w-24 h-24 bg-red-500/5 rounded-bl-full group-hover:bg-red-500/10 transition-colors"></div>
+          <div class="flex items-start justify-between mb-2">
+            <div class="w-10 h-10 rounded-xl bg-red-100 dark:bg-red-500/10 flex items-center justify-center text-red-600 text-xl shadow-sm">
+              <i class="ph-fill ph-warning-octagon"></i>
+            </div>
+          </div>
+          <div class="mt-2 text-3xl font-bold text-red-500">${criticalCount}</div>
+          <div class="text-gray-500 dark:text-gray-400 text-xs font-semibold uppercase tracking-wider mt-1">Critical Issues</div>
+        </div>
+
+        <!-- High -->
+        <div class="glass-card p-5 flex flex-col justify-between relative overflow-hidden group">
+          <div class="absolute right-0 top-0 w-24 h-24 bg-orange-500/5 rounded-bl-full group-hover:bg-orange-500/10 transition-colors"></div>
+          <div class="flex items-start justify-between mb-2">
+            <div class="w-10 h-10 rounded-xl bg-orange-100 dark:bg-orange-500/10 flex items-center justify-center text-orange-600 text-xl shadow-sm">
+              <i class="ph-fill ph-fire"></i>
+            </div>
+          </div>
+          <div class="mt-2 text-3xl font-bold text-orange-500">${highCount}</div>
+          <div class="text-gray-500 dark:text-gray-400 text-xs font-semibold uppercase tracking-wider mt-1">High Risk Issues</div>
+        </div>
+      </div>
+    `;
+
+    /* ===============================
+       2. TOPOLOGY CLUSTERS (Model 1 & 2)
     =============================== */
     const portMap = {};
     r.raw_docs?.forEach(doc => {
       portMap[doc.subdomain] = doc.open_ports || [];
     });
 
-    const clustersHTML = (r.clusters || []).map(c => {
-      const items = (c.examples || []).map(sub => {
-        const ports = portMap[sub] || [];
-        const text = ports.length
-          ? ports.map(p => `${p.port}/${p.service}`).join(", ")
-          : "No open ports";
+    let clustersHTML = "";
+    if (r.clusters && r.clusters.length > 0) {
+      clustersHTML = `
+        <div class="report-section">
+          <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
+            <i class="ph-bold ph-graph text-blue-500"></i> Discovered Target Clusters
+          </h2>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            ${r.clusters.map(c => {
+        const items = (c.examples || []).map(sub => {
+          const ports = portMap[sub] || [];
+          const portTags = ports.length 
+            ? ports.map(p => `<span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-white/5 border border-white/10 dark:text-gray-300 mr-1">${p.port}/${p.service}</span>`).join('') 
+            : `<span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-500 dark:bg-white/5 dark:text-gray-400 mr-1">No Open Ports</span>`;
+          return `
+            <div class="flex items-center justify-between p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-lg transition-colors border-b border-gray-100 dark:border-white/5 last:border-0 border-dashed">
+              <span class="text-sm font-medium text-gray-800 dark:text-gray-200 truncate w-1/2" title="${sub}">${sub}</span>
+              <div class="flex flex-wrap justify-end gap-1 shrink-0">${portTags}</div>
+            </div>`;
+        }).join("");
+
         return `
-          <li>
-            <strong>${sub}</strong>
-            <span class="card-text">(${text})</span>
-          </li>`;
-      }).join("");
-
-      return `
-        <div class="cluster-block card">
-          <h4>Cluster ${c.cluster_id} (${c.size})</h4>
-          <ul>${items}</ul>
-        </div>`;
-    }).join("");
-
-    const examplesHTML = (r.examples || []).map(e => `<li>${e}</li>`).join("");
-
-    /* ===============================
-       MODEL 2 – OPEN PORTS
-    =============================== */
-    const model2HTML = Object.keys(portMap).length ? `
-      <h3>Open Ports & Services</h3>
-      ${Object.entries(portMap).map(([sub, ports]) => `
-        <div class="port-block card">
-          <strong>${sub}</strong>
-          ${ports.length
-        ? `<ul>${ports.map(p =>
-          `<li>${p.port}/${p.service}</li>`).join("")}</ul>`
-        : `<p class="card-text">No open ports detected</p>`}
-        </div>
-      `).join("")}
-    ` : "";
-
-    /* ===============================
-       MODEL 3 – TECHNOLOGIES
-    =============================== */
-    const model3HTML = r.technology_fingerprints?.length ? `
-      <h3>Technology Fingerprints</h3>
-      ${r.technology_fingerprints.map(t => `
-        <div class="tech-box card">
-          <h4>${t.url || "Unknown URL"}</h4>
-          ${t.technologies.map(tech => `
-            <div class="tech-item card-text" style="margin-bottom: 10px; padding-bottom: 5px; border-bottom: 1px solid rgba(255,255,255,0.1);">
-              <strong>${tech.technology}</strong> ${tech.version || ""}
-              <br>
-              <small>Category: ${tech.category || "Unknown"} | Status: ${tech.vulnerability_status}</small>
-              ${tech.cves && tech.cves.length ? `
-                <div class="cve-list" style="margin-top: 5px; font-size: 0.85rem;">
-                  <strong>Vulnerabilities:</strong>
-                  <ul style="margin: 5px 0; padding-left: 20px;">
-                    ${tech.cves.map(cve => {
-      const isRealCVE = cve.cve && cve.cve.startsWith("CVE-");
-      return `
-                        <li>
-                          ${isRealCVE ? `
-                            <a href="https://nvd.nist.gov/vuln/detail/${cve.cve}" target="_blank" style="color: #38bdf8; text-decoration: underline;">
-                              ${cve.cve}
-                            </a>` : `
-                            <span style="color: #f59e0b; font-weight: bold;">${cve.cve}</span>
-                          `}
-                          (CVSS: ${cve.cvss}) - ${cve.severity}
-                        </li>`;
-    }).join("")}
-                  </ul>
-                </div>
-              ` : ""}
+          <details class="glass-card group [&_summary::-webkit-details-marker]:hidden bg-white/40 dark:bg-black/20" open>
+            <summary class="flex items-center justify-between px-4 py-3 cursor-pointer bg-gray-50 dark:bg-white/5 rounded-xl group-open:rounded-b-none transition-colors">
+              <div class="flex items-center gap-3">
+                <i class="ph ph-caret-down text-gray-400 group-open:rotate-180 transition-transform"></i>
+                <span class="font-semibold text-gray-800 dark:text-white">Cluster ${c.cluster_id}</span>
+              </div>
+              <span class="badge bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 px-2 py-1 rounded text-xs font-medium">${c.size} nodes</span>
+            </summary>
+            <div class="p-3 bg-white dark:bg-transparent rounded-b-xl max-h-64 overflow-y-auto">
+              ${items}
             </div>
-          `).join("")}
-        </div>
-      `).join("")}
-    ` : "";
-
-    /* ===============================
-       MODEL 4 – HTTP & TRAFFIC ANOMALIES
-    =============================== */
-    const model4HTML = r.http_anomalies?.length ? `
-      <h3>HTTP & Traffic Anomaly Detection</h3>
-      ${r.http_anomalies.map(a => {
-      const res = a.model4_result || {};
-      const signals = res.signals || [];
-      const isAnom = res.status === 'suspicious';
-      return `
-        <div class="anomaly-row ${isAnom ? 'suspicious' : ''}">
-          <div style="display: flex; justify-content: space-between; align-items: center;">
-            <strong>${a.subdomain}</strong>
-            <span class="badge" style="background: ${isAnom ? '#ef4444' : '#10b981'}; color: white;">
-              ${res.status?.toUpperCase() || "UNKNOWN"}
-            </span>
+          </details>`;
+      }).join("")}
           </div>
-          
-          <div class="card-text">
-             ${res.traffic_data ? `
-                <div class="traffic-snippet">
-                  📡 <strong>Traffic Analysis:</strong> ${res.traffic_data.packet_count} packets detected | ${res.traffic_data.tcp_syn_count} SYNs | ${res.traffic_data.unique_ips} Unique IPs
-                </div>
-             ` : ""}
-             
-             <div class="signal-list">
-               ${signals.length ? `
-                 <strong>Audit Findings:</strong>
-                 <ul>
-                   ${signals.map(s => `<li>${s}</li>`).join("")}
-                 </ul>
-               ` : `<small style="color: #94a3b8 !important;">Factual Audit: No security violations identified.</small>`}
-             </div>
-          </div>
-        </div>
-      `;
-    }).join("")}
-    ` : "";
-
-    /* ===============================
-       MODEL 5 – STATISTICS (VERTICAL CHARTS)
-    =============================== */
-    let model5StatsHTML = "";
-    if (r.model5?.statistics) {
-      const s = r.model5.statistics;
-
-      model5StatsHTML = `
-        <h3>Exploitation Strategy – Statistics</h3>
-
-        <div class="kpi-row">
-          <div class="kpi card">Total Strategies<br>${r.model5.strategy_count}</div>
-          <div class="kpi card">MITRE Techniques<br>${Object.keys(s.by_mitre || {}).length}</div>
-          <div class="kpi card">Weaponized<br>${s.by_exploit_type?.weaponized || 0}</div>
-        </div>
-
-        <!-- 🔥 VERTICAL CHART STACK -->
-        <div class="charts-vertical">
-          <div class="chart-item"><canvas id="m5-source-chart"></canvas></div>
-          <div class="chart-item"><canvas id="m5-confidence-chart"></canvas></div>
-          <div class="chart-item"><canvas id="m5-mitre-chart"></canvas></div>
-          <div class="chart-item"><canvas id="m5-port-chart"></canvas></div>
-        </div>
-      `;
-
-      requestAnimationFrame(() => {
-        renderPie("m5-source-chart", s.by_source);
-        renderPie("m5-confidence-chart", s.by_confidence);
-        renderBar("m5-mitre-chart", s.by_mitre);
-        renderBar("m5-port-chart", s.by_port);
-      });
+        </div>`;
     }
 
     /* ===============================
-       MODEL 5 – STRATEGIES
+       3. TECHNOLOGY & VULNERABILITIES (Model 3)
     =============================== */
-    /* ===============================
-       MODEL 5 – STRATEGIES
-    =============================== */
-    // Use the raw strategies directly (backend cleans them up now)
-    const rawStrategies = r.model5?.strategies || [];
+    let techHTML = "";
+    if (r.technology_fingerprints && r.technology_fingerprints.length > 0) {
+      techHTML = `
+        <div class="report-section mt-10">
+          <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
+            <i class="ph-bold ph-cpu text-purple-500"></i> Technology Stack & Vulnerabilities
+          </h2>
+          <div class="space-y-4">
+            ${r.technology_fingerprints.map(t => {
+        let hasCVEs = false;
+        const techTags = t.technologies.map(tech => {
+          if (tech.cves && tech.cves.length > 0) hasCVEs = true;
+          return `<span class="inline-flex items-center px-2 py-1 rounded-md text-xs font-semibold bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 border border-gray-200 dark:border-gray-700 mr-2 mb-2"><i class="ph-bold ph-brackets-angle mr-1 opacity-50"></i> ${tech.technology} ${tech.version || ''}</span>`;
+        }).join("");
 
-    // Feature: Deduplication is still useful for display
-    const uniqueStrategies = [];
-    const seenKeys = new Set();
-
-    rawStrategies.forEach(s => {
-      const attackChainStr = (s.attack_chain || []).join(" -> ");
-      // Key based on CVE and Chain to show unique paths
-      const key = `${s.cve_id}|${attackChainStr}`;
-
-      if (!seenKeys.has(key)) {
-        seenKeys.add(key);
-        uniqueStrategies.push(s);
-      }
-    });
-
-    const model5HTML = uniqueStrategies.length ? `
-      <h3>Exploitation Strategies</h3>
-      ${uniqueStrategies.map(s => {
-      // Build ExploitDB Links if they exist
-      let refHTML = "";
-      if (s.exploit_db_reference && s.exploit_db_reference.length > 0) {
-        refHTML = `<div style="margin-top:5px;"><strong>Exploit References:</strong><ul>`;
-        s.exploit_db_reference.forEach(ref => {
-          refHTML += `<li><a href="${ref.url}" target="_blank" style="color: #38bdf8;">${ref.id}</a> - ${ref.title}</li>`;
+        let cveRows = "";
+        t.technologies.forEach(tech => {
+          if (tech.cves && tech.cves.length > 0) {
+            tech.cves.forEach(cve => {
+              const isRealCVE = cve.cve && cve.cve.startsWith("CVE-");
+              const sevClass = getSeverityColor(cve.severity);
+              const cveLink = isRealCVE ? `<a href="https://nvd.nist.gov/vuln/detail/${cve.cve}" target="_blank" class="text-blue-500 hover:text-blue-400 hover:underline font-mono">${cve.cve}</a>` : `<span class="text-gray-500 dark:text-gray-400 font-mono">${cve.cve}</span>`;
+              
+              cveRows += `
+                <tr class="hover:bg-gray-50 dark:hover:bg-white/5 transition-colors border-b border-gray-100 dark:border-white/5 last:border-0">
+                  <td class="px-4 py-3">${cveLink}</td>
+                  <td class="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">${tech.technology}</td>
+                  <td class="px-4 py-3 text-sm font-medium">${cve.cvss || 'N/A'}</td>
+                  <td class="px-4 py-3">
+                    <span class="badge ${sevClass} px-2 py-0.5 rounded text-xs font-medium">${cve.severity}</span>
+                  </td>
+                </tr>
+              `;
+            });
+          }
         });
-        refHTML += `</ul></div>`;
-      }
 
-      const isVerified = s.exploit_db_reference && s.exploit_db_reference.length > 0;
-
-      return `
-        <div class="strategy-card card" style="border-left: 4px solid ${isVerified ? '#ef4444' : '#94a3b8'};">
-          <h4>${s.service}</h4>
-          
-          <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-             <span class="badge" style="background: ${isVerified ? '#ef4444' : '#94a3b8'}; color: white;">
-                ${s.evidence_status || "Unknown Status"}
-             </span>
-             <span><strong>CVE:</strong> ${s.cve_id} (Severity: ${s.severity})</span>
+        const cveTable = hasCVEs ? `
+          <div class="mt-4 border border-gray-200 dark:border-white/10 rounded-lg overflow-hidden">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="bg-gray-50 dark:bg-white/5 text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                  <th class="px-4 py-2 font-medium">CVE ID</th>
+                  <th class="px-4 py-2 font-medium">Affects</th>
+                  <th class="px-4 py-2 font-medium">CVSS</th>
+                  <th class="px-4 py-2 font-medium">Severity</th>
+                </tr>
+              </thead>
+              <tbody>${cveRows}</tbody>
+            </table>
           </div>
+        ` : `<div class="mt-3 text-sm text-gray-500 dark:text-gray-400 italic px-1"><i class="ph ph-check-circle text-green-500 mr-1"></i> No known vulnerabilities detected for this stack.</div>`;
 
-          ${(s.attack_chain && s.attack_chain.length > 0) ? `
-          <p class="card-text">
-            <strong>Attack Chain:</strong><br>
-            <span style="font-family: monospace; color: #ef4444; font-weight: bold;">
-              ${s.attack_chain.join(" <span style='color: #64748b;'>→</span> ")}
-            </span>
-          </p>` : `
-          <p class="card-text">
-            <strong>Attack Chain:</strong> <span style="color: #94a3b8; font-style: italic;">Not Available</span>
-            <br>
-            <small style="color: #64748b;">(Reason: No verified public exploit exists; exploitation path cannot be determined.)</small>
-          </p>
-          `}
-          
-          <p class="card-text" style="font-style: italic; color: #94a3b8; margin-top: 10px;">
-             "${s.explanation}"
-          </p>
+        return `
+          <div class="glass-card p-5 relative overflow-hidden">
+            <div class="absolute left-0 top-0 bottom-0 w-1 ${hasCVEs ? 'bg-red-500' : 'bg-green-500'}"></div>
+            <div class="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-3 px-2">
+              <div>
+                <h4 class="text-lg font-bold text-gray-800 dark:text-white break-all">${t.url || "Unknown URL"}</h4>
+                <div class="flex items-center gap-2 mt-1">
+                   ${hasCVEs ? '<span class="text-xs font-medium text-red-500 flex items-center bg-red-500/10 px-2 py-0.5 rounded"><i class="ph-fill ph-warning-circle mr-1"></i> Vulnerable</span>' : '<span class="text-xs font-medium text-green-500 flex items-center bg-green-500/10 px-2 py-0.5 rounded"><i class="ph-fill ph-check-circle mr-1"></i> Secure</span>'}
+                </div>
+              </div>
+            </div>
+            <div class="px-2 mt-3">
+              <div class="flex flex-wrap">${techTags}</div>
+              ${cveTable}
+            </div>
+          </div>
+        `;
+      }).join("")}
+          </div>
+        </div>`;
+    }
 
-          ${refHTML}
-          
-          <div style="margin-top: 10px; font-size: 0.85rem; color: #64748b;">
-             MITRE: ${s.mitre_technique}
+    /* ===============================
+       4. ANOMALY DETECTION (Model 4)
+    =============================== */
+    let anomaliesHTML = "";
+    if (r.http_anomalies && r.http_anomalies.length > 0) {
+      anomaliesHTML = `
+        <div class="report-section mt-10">
+          <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
+            <i class="ph-bold ph-activity text-teal-500"></i> Traffic Anomaly Detection
+          </h2>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            ${r.http_anomalies.map(a => {
+              const res = a.model4_result || {};
+              const signals = res.signals || [];
+              const isAnom = res.status === 'suspicious';
+              
+              const metrics = res.traffic_data ? `
+                <div class="grid grid-cols-3 gap-2 mt-3 mb-3 border-y border-gray-100 dark:border-white/5 py-3">
+                   <div class="flex flex-col"><span class="text-xl font-bold">${res.traffic_data.packet_count}</span><span class="text-[10px] text-gray-400 uppercase">Packets</span></div>
+                   <div class="flex flex-col"><span class="text-xl font-bold">${res.traffic_data.tcp_syn_count}</span><span class="text-[10px] text-gray-400 uppercase">SYNs</span></div>
+                   <div class="flex flex-col"><span class="text-xl font-bold">${res.traffic_data.unique_ips}</span><span class="text-[10px] text-gray-400 uppercase">IPs</span></div>
+                </div>
+              ` : '';
+
+              const signalList = signals.length ? `
+                <div class="text-xs space-y-1">
+                  ${signals.map(s => `<div class="flex items-start text-red-400 bg-red-500/5 px-2 py-1 rounded border border-red-500/10"><i class="ph-bold ph-warning mr-1.5 mt-0.5 text-red-500 shrink-0"></i> <span>${s}</span></div>`).join("")}
+                </div>
+              ` : `<div class="text-xs text-gray-400 italic px-1"><i class="ph-fill ph-shield-check text-green-500"></i> No suspicious patterns detected.</div>`;
+
+              return `
+                <div class="glass-card p-4 transition-transform hover:-translate-y-1">
+                  <div class="flex justify-between items-start mb-2">
+                    <h4 class="font-mono text-sm font-bold truncate max-w-[70%]" title="${a.subdomain}">${a.subdomain}</h4>
+                    <span class="badge ${isAnom ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 'bg-green-500/10 text-green-500 border border-green-500/20'} px-2 py-0.5 rounded text-[10px] font-bold uppercase">${res.status || "Unknown"}</span>
+                  </div>
+                  ${metrics}
+                  ${signalList}
+                </div>
+              `;
+            }).join("")}
           </div>
         </div>
       `;
-    }).join("")}
-    ` : "<p>No exploitation strategies generated (System appears secure or no known CVEs).</p>";
+    }
 
     /* ===============================
-       FINAL RENDER
+       5. FINAL RISK TABLE (Model 6)
     =============================== */
-
-    // Process Model 6 HTML into Table
-    const model6Data = r.model6 || [];
     let model6HTML = "";
     if (model6Data.length) {
       model6HTML = `
-        <div class="risk-table-container">
-          <h3>Vulnerability Risk Assessment</h3>
-          <table class="vuln-table">
-            <thead>
-              <tr>
-                <th>CVE ID</th>
-                <th>Service</th>
-                <th>Port</th>
-                <th>CVSS</th>
-                <th>Risk Level</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${model6Data.map(v => {
-        const portDisplay = (v.port !== undefined && v.port !== null && v.port !== "") ? v.port : "N/A";
-        const cvssDisplay = (v.cvss !== undefined && v.cvss !== null && v.cvss !== "") ? v.cvss : "N/A";
-        const riskClass = (v.risk_level || "unknown").toLowerCase();
-
-        return `
-                <tr>
-                  <td>${v.cve_id || "N/A"}</td>
-                  <td>${v.service || "N/A"}</td>
-                  <td>${portDisplay}</td>
-                  <td>${cvssDisplay}</td>
-                  <td>
-                    <span class="risk-badge ${riskClass}">
-                      ${v.risk_level || "Unknown"}
-                    </span>
-                  </td>
-                </tr>`;
-      }).join("")}
-            </tbody>
-          </table>
+        <div class="report-section mt-10">
+          <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
+            <i class="ph-bold ph-shield-warning text-red-500"></i> Global Vulnerability Index
+          </h2>
+          <div class="glass-card overflow-hidden">
+            <div class="overflow-x-auto">
+              <table class="w-full text-left border-collapse">
+                <thead>
+                  <tr class="bg-gray-50 dark:bg-white/5 text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-white/10">
+                    <th class="px-6 py-4 font-semibold">CVE ID</th>
+                    <th class="px-6 py-4 font-semibold">Affected Service</th>
+                    <th class="px-6 py-4 font-semibold">Port</th>
+                    <th class="px-6 py-4 font-semibold">CVSS Score</th>
+                    <th class="px-6 py-4 font-semibold">Risk Level</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 dark:divide-white/5">
+                  ${model6Data.map(v => {
+                    const portDisplay = (v.port !== undefined && v.port !== null && v.port !== "") ? v.port : "N/A";
+                    const cvssDisplay = (v.cvss !== undefined && v.cvss !== null && v.cvss !== "") ? v.cvss : "N/A";
+                    const sevClass = getSeverityColor(v.risk_level);
+                    
+                    return `
+                      <tr class="hover:bg-gray-50 dark:hover:bg-white/5 transition-colors group">
+                        <td class="px-6 py-4 font-mono text-sm ${v.cve_id ? 'text-blue-500 dark:text-blue-400' : 'text-gray-500'}">${v.cve_id || "N/A"}</td>
+                        <td class="px-6 py-4 text-sm font-medium text-gray-800 dark:text-gray-200">${v.service || "N/A"}</td>
+                        <td class="px-6 py-4">
+                          <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 dark:bg-white/10 dark:text-gray-300 border border-gray-200 dark:border-white/10">
+                            ${portDisplay}
+                          </span>
+                        </td>
+                        <td class="px-6 py-4 text-sm font-bold text-gray-700 dark:text-gray-300">${cvssDisplay}</td>
+                        <td class="px-6 py-4">
+                          <div class="flex items-center gap-2">
+                            ${getRiskDot(v.risk_level)}
+                            <span class="badge ${sevClass} px-2.5 py-1 rounded text-xs font-bold uppercase tracking-wide">
+                              ${v.risk_level || "Unknown"}
+                            </span>
+                          </div>
+                        </td>
+                      </tr>`;
+                  }).join("")}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       `;
+    } else {
+        model6HTML = `
+        <div class="report-section mt-10">
+          <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
+            <i class="ph-bold ph-shield-check text-green-500"></i> Global Vulnerability Index
+          </h2>
+          <div class="glass-card p-8 flex flex-col justify-center items-center text-center">
+             <i class="ph-fill ph-check-circle text-5xl text-green-500 mb-4 drop-shadow-[0_0_10px_rgba(34,197,94,0.5)]"></i>
+             <h3 class="text-xl font-bold mb-2">System Secure</h3>
+             <p class="text-gray-500 dark:text-gray-400">No verifiable CVEs were detected in the targeted footprint.</p>
+          </div>
+        </div>`;
     }
 
     /* ===============================
-       MODEL 7 – Recommendations (Async Container)
+       6. ASYNC RECOMMENDATIONS
     =============================== */
-    // We render an empty container and handle fetching on button click
     const recommendationsHTML = `
-      <div id="recommendations-section" class="recommendations-section" style="display: none;">
-        <h3>Recommended Patches & Remediation</h3>
-        <p class="card-text" style="margin-bottom: 16px;">One recommendation per vulnerability. Apply fixes in priority order.</p>
+      <div id="recommendations-section" class="hidden mt-10 scroll-mt-24">
+        <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
+          <i class="ph-bold ph-wrench text-blue-500"></i> Recommended Action Plan
+        </h2>
         <div id="recommendations-content">
-           <p class="card-text">Loading recommendations...</p>
+           <div class="glass-card p-8 flex flex-col justify-center items-center text-center">
+             <i class="ph ph-spinner-gap text-3xl text-cyber-accent animate-spin mb-3"></i>
+             <p class="text-gray-500">Synthesizing patch priorities...</p>
+           </div>
         </div>
       </div>
     `;
 
+    /* ===============================
+       EXECUTE RENDER
+    =============================== */
     reportContent.innerHTML = `
-      <div class="summary card">
-        <strong>Total Candidates:</strong> ${r.total_candidates || 0}
-      </div>
-
-      <h3>Clusters</h3>
+      ${summaryCardsHTML}
       ${clustersHTML}
-
-      <h3>Examples</h3>
-      <ul>${examplesHTML}</ul>
-
-      ${model2HTML}
-      ${model3HTML}
-      ${model4HTML}
-      ${model5StatsHTML}
-      ${model5HTML}
+      ${techHTML}
+      ${anomaliesHTML}
       ${model6HTML}
       ${recommendationsHTML}
     `;
-
+    
+    // Clear styles overriding structural width
+    reportContent.className = ""; 
+    // Wait, the parent has `glass-card p-6 md:p-8 min-h-[400px]`.
+    // Actually the user wants sections with spacing. If reportContent itself is a glass-card, the summary grids inside looks like card-in-card.
+    // I will dynamically remove the glass-card class from reportContent to let children format the layout beautifully!
+    reportContent.classList.remove('glass-card', 'p-6', 'md:p-8', 'min-h-[400px]');
+    
+    /* ===============================
+       BIND EVENTS
+    =============================== */
     const patchBtn = document.getElementById("patch-btn");
     if (patchBtn) {
-      // Logic for Model 7 async generation
       let isRecommendationsVisible = false;
       let hasGenerated = false;
 
       patchBtn.onclick = async () => {
         const recSection = document.getElementById("recommendations-section");
         const recContent = document.getElementById("recommendations-content");
-
-        // Toggle hide if already generated and visible
+        const origTextHTML = '<i class="ph-bold ph-shield-check text-emerald-600 dark:text-emerald-400 text-lg"></i> Security Patches';
+        
         if (isRecommendationsVisible) {
-          recSection.style.display = "none";
-          patchBtn.textContent = "Show Recommendation";
+          recSection.classList.add('hidden');
+          patchBtn.innerHTML = origTextHTML;
           isRecommendationsVisible = false;
           return;
         }
 
-        // Show if already generated but hidden
         if (hasGenerated) {
-          recSection.style.display = "block";
-          patchBtn.textContent = "Hide Recommendation";
+          recSection.classList.remove('hidden');
+          patchBtn.innerHTML = '<i class="ph-bold ph-eye-slash text-gray-500 text-lg"></i> Hide Patches';
           isRecommendationsVisible = true;
           recSection.scrollIntoView({ behavior: "smooth", block: "start" });
           return;
         }
 
-        // --- Execute Model 7 Endpoint ---
-        patchBtn.textContent = "Loading...";
+        patchBtn.innerHTML = '<i class="ph-bold ph-spinner-gap animate-spin text-lg"></i> Loading...';
         patchBtn.disabled = true;
-        recSection.style.display = "block";
-        recContent.innerHTML = "<p class='card-text'>Generating intelligent recommendations... please wait.</p>";
+        recSection.classList.remove('hidden');
         recSection.scrollIntoView({ behavior: "smooth", block: "start" });
 
         try {
@@ -476,7 +473,7 @@ document.addEventListener("DOMContentLoaded", async () => {
           if (reportId) payload.report_id = reportId;
           if (domain) payload.domain = domain;
 
-          const recResp = await fetch("http://localhost:5000/generate_recommendations", {
+          const recResp = await fetch("/generate_recommendations", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload)
@@ -488,56 +485,80 @@ document.addEventListener("DOMContentLoaded", async () => {
           const recArray = recData.recommendations || [];
 
           if (recArray.length === 0) {
-            recContent.innerHTML = "<p class='card-text'>No vulnerabilities in this report; no recommendations to show.</p>";
+            recContent.innerHTML = `
+              <div class="glass-card p-8 text-center text-gray-500">
+                <i class="ph-fill ph-shield-check text-4xl text-green-500 drop-shadow-[0_0_10px_rgba(34,197,94,0.5)] mb-3"></i>
+                <p>No actionable vulnerabilities found to patch.</p>
+              </div>`;
           } else {
             recContent.innerHTML = `
-              <div class="recommendation-cards">
+              <div class="space-y-4">
                 ${recArray.map(rec => {
-              let remList = "";
-              if (Array.isArray(rec.remediation)) {
-                remList = "<ul>" + rec.remediation.map(step => `<li>${step}</li>`).join("") + "</ul>";
-              } else {
-                remList = rec.remediation || "—";
-              }
+                  let remList = "";
+                  if (Array.isArray(rec.remediation)) {
+                    remList = "<ul class='list-disc pl-5 mt-2 space-y-1'>" + rec.remediation.map(step => `<li>${step}</li>`).join("") + "</ul>";
+                  } else {
+                    remList = `<p class='mt-2'>${rec.remediation || "—"}</p>`;
+                  }
 
-              let refListHTML = "";
-              if (Array.isArray(rec.references) && rec.references.length > 0) {
-                refListHTML = `<div class="rec-row" style="margin-top: 10px;"><strong>References:</strong><ul style="margin: 5px 0; padding-left: 20px;">` +
-                  rec.references.map(u => `<li><a href="${u}" target="_blank" rel="noopener">${u}</a></li>`).join("") +
-                  `</ul></div>`;
-              }
+                  let refListHTML = "";
+                  if (Array.isArray(rec.references) && rec.references.length > 0) {
+                    refListHTML = `<div class="mt-4 pt-4 border-t border-gray-100 dark:border-white/5"><h5 class="text-xs font-bold uppercase text-gray-500 tracking-wider mb-2">References</h5><ul class="text-sm space-y-1">` +
+                      rec.references.map(u => `<li><a href="${u}" target="_blank" rel="noopener" class="text-blue-500 hover:underline break-all">${u}</a></li>`).join("") +
+                      `</ul></div>`;
+                  }
 
-              return `
-                  <div class="recommendation-card card">
-                    <div class="rec-row" style="display:flex; justify-content:space-between;">
-                        <span><strong>CVE:</strong> ${rec.cve_id || "N/A"}</span>
-                        <span class="risk-badge ${(rec.severity || rec.risk_level || "unknown").toLowerCase()}">${rec.priority || rec.severity || "Unknown"}</span>
+                  const sevClass = getSeverityColor(rec.severity || rec.risk_level);
+
+                  return `
+                    <div class="glass-card p-5 relative overflow-hidden group">
+                      <div class="absolute left-0 top-0 bottom-0 w-1 ${sevClass.includes('red') ? 'bg-red-500' : 'bg-orange-500'}"></div>
+                      <div class="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-3 pl-2">
+                          <div>
+                             <h4 class="text-lg font-bold font-mono text-gray-800 dark:text-gray-100 mb-1">${rec.cve_id || "Unknown Vulnerability"}</h4>
+                             <p class="text-sm font-medium text-gray-500">Service: <span class="text-gray-700 dark:text-gray-300">${rec.service || "N/A"}</span> | Port: <span class="bg-gray-100 dark:bg-white/10 px-1.5 py-0.5 rounded">${rec.port !== undefined && rec.port !== null ? rec.port : "N/A"}</span></p>
+                          </div>
+                          <span class="badge ${sevClass} px-3 py-1 rounded text-xs font-bold uppercase shrink-0">${rec.priority || rec.severity || "Unknown"}</span>
+                      </div>
+                      
+                      <div class="mt-4 pl-2 text-sm text-gray-600 dark:text-gray-300">
+                        <p class="italic">"${rec.explanation || "—"}"</p>
+                        ${rec.attacker_perspective ? `<p class="mt-3 p-3 bg-red-500/5 border border-red-500/10 rounded-lg text-red-600 dark:text-red-400"><i class="ph-bold ph-skull mr-1"></i> <strong class="font-medium">Attacker Perspective:</strong> ${rec.attacker_perspective}</p>` : ''}
+                      </div>
+
+                      <div class="mt-4 pl-2 text-sm">
+                          <h5 class="text-xs font-bold uppercase text-emerald-600 dark:text-emerald-400 tracking-wider flex items-center gap-1"><i class="ph-bold ph-check-square"></i> Actionable Remediation</h5>
+                          <div class="text-gray-700 dark:text-gray-300">${remList}</div>
+                      </div>
+                      
+                      <div class="pl-2">
+                        ${refListHTML}
+                      </div>
+
+                      <div class="mt-5 pl-2">
+                          <a href="/download_fix_script?cve_id=${encodeURIComponent(rec.cve_id || "N/A")}&service=${encodeURIComponent(rec.service || "")}&port=${encodeURIComponent(rec.port || "")}&host=${encodeURIComponent(domain || "")}" class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 transition-all text-sm font-semibold border border-transparent dark:border-white/10 btn-glow">
+                             <i class="ph-bold ph-terminal-window"></i> Download PowerShell Fix Matrix
+                          </a>
+                      </div>
                     </div>
-                    <div class="rec-row" style="margin-top: 5px;"><strong>Service & Port:</strong> ${rec.service || "N/A"} (Port ${rec.port !== undefined && rec.port !== null ? rec.port : "N/A"})</div>
-                    <div class="rec-row" style="margin-top: 10px; font-style: italic;"><strong>Explanation:</strong> ${rec.explanation || "—"}</div>
-                    <div class="rec-row" style="margin-top: 5px; font-style: italic; color: #f87171;"><strong>Attacker Perspective:</strong> ${rec.attacker_perspective || "—"}</div>
-                    <div class="rec-row rec-remediation" style="margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px;">
-                        <strong>Actionable Remediation:</strong><br>${remList}
-                    </div>
-                    ${refListHTML}
-                    <div class="rec-row" style="margin-top: 15px;">
-                        <a href="/download_fix_script?cve_id=${encodeURIComponent(rec.cve_id || "N/A")}&service=${encodeURIComponent(rec.service || "")}&port=${encodeURIComponent(rec.port || "")}&host=${encodeURIComponent(rec.host || "")}" class="btn btn-sm btn-outline-info download-fix-btn">Download Fix Script</a>
-                    </div>
-                  </div>
-                `}).join("")}
+                  `;
+                }).join("")}
               </div>
             `;
           }
 
           hasGenerated = true;
           isRecommendationsVisible = true;
-          patchBtn.textContent = "Hide Recommendation";
+          patchBtn.innerHTML = '<i class="ph-bold ph-eye-slash text-gray-500 text-lg"></i> Hide Patches';
           patchBtn.disabled = false;
 
         } catch (error) {
           console.error(error);
-          recContent.innerHTML = `<p style="color:red;">Error loading recommendations: ${error.message}</p>`;
-          patchBtn.textContent = "Show Recommendation";
+          recContent.innerHTML = `
+            <div class="glass-card p-6 bg-red-500/5 border-red-500/20 text-center">
+              <p class="text-red-500 font-medium">Error loading recommendations: ${error.message}</p>
+            </div>`;
+          patchBtn.innerHTML = origTextHTML;
           patchBtn.disabled = false;
         }
       };
@@ -555,7 +576,9 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   } catch (err) {
     console.error(err);
-    reportContent.innerHTML =
-      `< p style = "color:red;" > Error loading report: ${err.message}</p > `;
+    reportContent.innerHTML = `
+      <div class="glass-card p-6 bg-red-500/5 border-red-500/20 text-center">
+        <p class="text-red-500 font-medium">Critical Application Error: ${err.message}</p>
+      </div>`;
   }
 });
