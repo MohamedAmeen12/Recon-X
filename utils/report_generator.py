@@ -4,8 +4,30 @@ from jinja2 import Template
 from datetime import datetime
 
 # Path to wkhtmltopdf executable
-WKHTMLTOPDF_PATH = r'C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe'
-config = pdfkit.configuration(wkhtmltopdf=WKHTMLTOPDF_PATH)
+def get_pdfkit_config():
+    """
+    Search for wkhtmltopdf executable and return pdfkit configuration.
+    """
+    possible_paths = [
+        r'C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe',
+        r'C:\Program Files (x86)\wkhtmltopdf\bin\wkhtmltopdf.exe',
+        r'C:\wkhtmltopdf\bin\wkhtmltopdf.exe'
+    ]
+    
+    # Also check if it's in the PATH
+    import shutil
+    path_in_env = shutil.which("wkhtmltopdf")
+    if path_in_env:
+        return pdfkit.configuration(wkhtmltopdf=path_in_env)
+
+    for path in possible_paths:
+        if os.path.exists(path):
+            return pdfkit.configuration(wkhtmltopdf=path)
+            
+    # If not found, return None or a dummy config and handle it in the generation function
+    return None
+
+config = get_pdfkit_config()
 
 def generate_html_report(scan_results, domain, username, scan_id):
     """
@@ -400,5 +422,14 @@ def generate_pdf_report(html_file_path):
         'enable-local-file-access': None
     }
     
-    pdfkit.from_file(html_file_path, output_pdf, configuration=config, options=options)
-    return output_pdf
+    if not config:
+        print("[!] ERROR: wkhtmltopdf executable not found. PDF report generation failed.")
+        print("[!] Please install wkhtmltopdf and ensure it is in your PATH or at C:\\Program Files\\wkhtmltopdf\\bin\\wkhtmltopdf.exe")
+        return None
+        
+    try:
+        pdfkit.from_file(html_file_path, output_pdf, configuration=config, options=options)
+        return output_pdf
+    except Exception as e:
+        print(f"[!] ERROR during PDF generation: {str(e)}")
+        return None

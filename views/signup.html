@@ -64,72 +64,16 @@
         <a href="/home"><img src="/static/assets/images/logo.png" alt="ReconX Logo" class="h-10 w-auto drop-shadow-lg object-contain hover:scale-105 transition-transform" onerror="this.outerHTML='<i class=\\\'ph-fill ph-shield-check text-4xl text-cyber-accent\\\'></i>'" /></a>
       </div>
 
-      <div class="text-center mb-8">
-        <h1 class="text-2xl font-bold tracking-tight text-white mb-2">Deploy Account</h1>
-        <p class="text-sm text-cyber-textSecondary">Initialize your vulnerability scanning engine</p>
+      <input type="password" id="password" placeholder="Password" required />
+
+      <div class="password-requirements">
+        <p id="req-length" class="invalid">❌ 8 characters or more</p>
+        <p id="req-special" class="invalid">❌ At least one special character</p>
       </div>
 
-      <form id="signupForm" class="space-y-5">
-        
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-          <div>
-            <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2" for="name">Operator Name</label>
-            <div class="relative">
-              <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none"><i class="ph text-gray-500 text-lg ph-user"></i></div>
-              <input id="name" type="text" placeholder="John Doe" required class="form-input pl-11" />
-            </div>
-          </div>
-
-          <div>
-            <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2" for="email">Email Address</label>
-            <div class="relative">
-              <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none"><i class="ph text-gray-500 text-lg ph-envelope"></i></div>
-              <input id="email" type="email" placeholder="agent@reconx.io" required class="form-input pl-11" />
-            </div>
-          </div>
-        </div>
-
-        <div>
-          <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1" for="domains">Authorized Scopes</label>
-          <p class="text-xs text-gray-500 mb-2">Target domains you have authorization to scan (comma or newline separated)</p>
-          <div class="relative">
-            <div class="absolute top-3.5 left-0 pl-3.5 flex items-start pointer-events-none"><i class="ph text-gray-500 text-lg ph-globe"></i></div>
-            <textarea id="domains" rows="3" placeholder="example.com&#10;api.example.com" required class="form-input pl-11 py-3" style="resize: vertical;"></textarea>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-1 gap-5 mt-2">
-          <div>
-            <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2" for="password">Security Key</label>
-            <div class="relative">
-              <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none"><i class="ph text-gray-500 text-lg ph-lock-key"></i></div>
-              <input id="password" type="password" placeholder="••••••••" required class="form-input pl-11" />
-            </div>
-            <!-- Requirements matched to JS script targets -->
-            <div class="mt-2 text-xs flex flex-col gap-1 password-requirements">
-               <p id="req-length" class="text-gray-500 flex items-center gap-1 transition-colors duration-300 invalid"><i class="ph-fill ph-x-circle text-red-500"></i> <span class="text-gray-400">8 characters or more</span></p>
-               <p id="req-special" class="text-gray-500 flex items-center gap-1 transition-colors duration-300 invalid"><i class="ph-fill ph-x-circle text-red-500"></i> <span class="text-gray-400">At least one special character</span></p>
-            </div>
-            <!-- To make signup.js logic work out-of-the-box modifying icons rather than text blindly -->
-            <style>
-              .password-requirements p.valid i.ph-x-circle { display: none !important; }
-              .password-requirements p.valid::before { content: "✓ "; color: #10B981; font-weight: bold; margin-right: 4px; }
-            </style>
-          </div>
-
-          <div>
-            <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2" for="confirmPassword">Confirm Key</label>
-            <div class="relative">
-              <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none"><i class="ph text-gray-500 text-lg ph-check-circle"></i></div>
-              <input id="confirmPassword" type="password" placeholder="••••••••" required class="form-input pl-11" />
-            </div>
-          </div>
-        </div>
-
-        <button type="submit" class="w-full flex justify-center items-center gap-2 py-3.5 px-4 border border-transparent rounded-xl shadow-sm text-sm font-bold text-white bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 btn-glow mt-4">
-          Deploy Engine <i class="ph-bold ph-rocket-launch"></i>
-        </button>
-      </form>
+      <input type="password" id="confirmPassword" placeholder="Confirm Password" required />
+      <button type="submit">Sign Up</button>
+    </form>
 
       <div class="mt-6 text-center border-t border-white/10 pt-6">
         <p class="text-sm text-gray-400">
