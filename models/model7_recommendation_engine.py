@@ -8,6 +8,7 @@ import numpy as np
 import logging
 import re
 from datetime import datetime
+import random
 from utils.nvd_api_tool import get_nvd_client
 try:
     from config.database import recommendations_collection
@@ -17,6 +18,185 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 class RecommendationEngine:
+    CWE_MAPPING = {
+        "CWE-125": {
+            "name": "Out-of-bounds Read",
+            "behaviors": [
+                "improper memory boundary handling that allows reading sensitive memory regions",
+                "insufficient bounds checking that enables unauthorized memory access",
+                "out-of-bounds read conditions that allow leakage of internal memory data",
+                "memory access violations that permit unintended disclosure of application memory"
+            ],
+            "impacts": [
+                "disclosure of sensitive information or a potential system crash",
+                "unauthorized memory exposure leading to data exfiltration",
+                "application instability and leakage of privileged data",
+                "breach of data confidentiality via low-level memory access"
+            ],
+            "attacks": [
+                "crafted memory request targeting vulnerable parsing logic",
+                "malformed input designed to exploit memory handling weaknesses",
+                "carefully crafted payload targeting parsing routines",
+                "specially structured request triggering memory access flaws"
+            ],
+            "hardening": "Apply memory safety patches and validate buffer boundaries."
+        },
+        "CWE-416": {
+            "name": "Use-After-Free",
+            "behaviors": [
+                "use-after-free condition that allows execution of unintended memory references",
+                "improper management of memory pointers after deallocation",
+                "dangling pointer reference that can be utilized to corrupt program state",
+                "memory lifecycle error that permits access to freed memory segments"
+            ],
+            "impacts": [
+                "memory corruption, denial of service, or arbitrary code execution",
+                "potential for full system compromise and process hijacking",
+                "unpredictable application behavior or unauthorized host control",
+                "execution flow manipulation leading to administrative takeover"
+            ],
+            "attacks": [
+                "remote trigger targeting reclaimed memory pointer state",
+                "use-after-free exploit sequence aimed at memory corruption",
+                "targeted payload designed to hijack freed memory references",
+                "adversarial request exploiting timing flaws in memory deallocation"
+            ],
+            "hardening": "Ensure proper memory deallocation and pointer handling."
+        },
+        "CWE-787": {
+            "name": "Out-of-bounds Write",
+            "behaviors": [
+                "memory write overflow that may corrupt application state or crash the system",
+                "improper limitation of write operations to a specific buffer boundary",
+                "out-of-bounds write vulnerability that permits memory address overwriting",
+                "buffer overflow condition that allows data corruption in adjacent memory"
+            ],
+            "impacts": [
+                "system instability, data corruption, or code execution",
+                "potential for total host crash or unauthorized privilege escalation",
+                "corruption of runtime parameters and potential system takeover",
+                "immediate service disruption or arbitrary payload execution"
+            ],
+            "attacks": [
+                "oversized input payload designed to overwrite adjacent memory blocks",
+                "malicious data sequence targeting buffer boundary weaknesses",
+                "crafted request aimed at overflowing internal memory structures",
+                "targeted input designed to bypass length validation and corrupt memory"
+            ],
+            "hardening": "Implement strict bounds checking and memory protection mechanisms."
+        },
+        "CWE-79": {
+            "name": "Cross-Site Scripting (XSS)",
+            "behaviors": [
+                "improper neutralization of user-supplied input that allows script injection",
+                "lack of encoding for dynamic content that enables browser-side execution",
+                "unvalidated input processing that permits execution of malicious scripts",
+                "failure to sanitize web parameters before rendering them in the UI"
+            ],
+            "impacts": [
+                "unauthorized script execution in user browsers or session hijacking",
+                "theft of sensitive session cookies and user account takeover",
+                "manipulation of the DOM and delivery of phishing content to users",
+                "bypassing of same-origin policy to exfiltrate private user data"
+            ],
+            "attacks": [
+                "malicious script payload injected via unsanitized web parameters",
+                "XSS injection vector delivered through crafted URL inputs",
+                "specially structured payload targeting unencoded browser output",
+                "adversarial input designed to trigger script execution in a victim's session"
+            ],
+            "hardening": "Implement context-aware output encoding and strict CSP headers."
+        },
+        "CWE-89": {
+            "name": "SQL Injection",
+            "behaviors": [
+                "improper neutralization of special elements used in a SQL command",
+                "unvalidated input that allows manipulation of host database queries",
+                "lack of parameterization in database calls that enables query injection",
+                "backend vulnerability where user input alters the intended SQL structure"
+            ],
+            "impacts": [
+                "unauthorized data extraction, modification, or authentication bypass",
+                "breach of database integrity and mass exfiltration of sensitive records",
+                "potential for full database takeover and persistent data manipulation",
+                "unauthorized access to administrative credentials and internal schema"
+            ],
+            "attacks": [
+                "malicious SQL fragments designed to alter backend query logic",
+                "SQL injection payload targeting vulnerable database parameters",
+                "crafted input sequence designed to bypass authentication via SQL logic",
+                "targeted request exploiting unsanitized elements in the SQL execution flow"
+            ],
+            "hardening": "Refactor database queries to exclusively use parameterized statements."
+        },
+        "CWE-78": {
+            "name": "OS Command Injection",
+            "behaviors": [
+                "improper neutralization of special elements used in an OS command",
+                "application logic that allows passing unsanitized input to the shell",
+                "vulnerability where user input is executed directly by the operating system",
+                "lack of input filtering before execution of low-level system commands"
+            ],
+            "impacts": [
+                "full system compromise via arbitrary command execution",
+                "complete host takeover and potential for lateral movement",
+                "unauthorized administrative access and installation of persistent backdoors",
+                "execution of arbitrary shellcode leading to full infrastructure breach"
+            ],
+            "attacks": [
+                "remote payload containing shell metacharacters to trigger command execution",
+                "crafted input designed to escape application logic and reach the shell",
+                "malicious command sequence targeting vulnerable system call routines",
+                "targeted request aimed at executing arbitrary binaries on the server"
+            ],
+            "hardening": "Avoid direct OS command execution; use built-in library APIs instead."
+        },
+        "CWE-77": {
+            "name": "Command Injection",
+            "behaviors": [
+                "improper neutralization of special elements used in a command",
+                "unvalidated input processing that enables execution of arbitrary payloads",
+                "flaw where external data triggers unintended command execution flow",
+                "logic error in command construction allowing for payload injection"
+            ],
+            "impacts": [
+                "arbitrary command execution and complete host takeover",
+                "unauthorized control over application logic and system resources",
+                "potential for service disruption and data exfiltration via commands",
+                "immediate elevation of privilege through malicious command delivery"
+            ],
+            "attacks": [
+                "crafted input designed to escape application logic and reach the shell",
+                "remote payload targeting command strings with unsanitized data",
+                "specially structured request aimed at triggering unintended sub-processes",
+                "adversarial input sequence exploiting vulnerabilities in command parsing"
+            ],
+            "hardening": "Implement strict input whitelisting and avoid shell spawning."
+        },
+        "CWE-22": {
+            "name": "Path Traversal",
+            "behaviors": [
+                "improper limitation of a pathname to a restricted directory ('Path Traversal')",
+                "unvalidated file path processing that allows directory structure escaping",
+                "lack of path normalization that enables access to parent directories",
+                "vulnerability where input characters allow traversal outside the intended root"
+            ],
+            "impacts": [
+                "unauthorized access to sensitive files on the server",
+                "exposure of confidential configuration files and source code",
+                "potential for remote discovery of system-level credentials",
+                "bypassing of filesystem permissions to read arbitrary host data"
+            ],
+            "attacks": [
+                "specially crafted dot-dot-slash (../) sequences in URL parameters",
+                "path traversal payload designed to escape the web root directory",
+                "maliciously structured request targeting file inclusion routines",
+                "adversarial input aimed at resolving paths outside the application sandbox"
+            ],
+            "hardening": "Validate all file paths and use a restricted filesystem root."
+        }
+    }
+
     def __init__(self):
         self.nvd_client = get_nvd_client()
         self.cve_cache = {}  
@@ -59,6 +239,21 @@ class RecommendationEngine:
             if patch_link and patch_link not in references:
                 references.insert(0, patch_link)
 
+            # --- INTELLIGENT ANALYST METADATA ---
+            exploit_search = vuln.get("exploit_db_reference") or []
+            has_exploit = len(exploit_search) > 0
+            
+            # Confidence Logic
+            if has_exploit and cvss >= 7.0:
+                conf_level = "HIGH"
+                justification = "Direct public exploit evidence found and verified via CVSS metrics."
+            elif cvss >= 4.0:
+                conf_level = "MEDIUM"
+                justification = "Vulnerability matched via version fingerprinting; theoretical exploit paths exist."
+            else:
+                conf_level = "LOW"
+                justification = "Low-severity finding based on opportunistic service detection."
+
             rec_obj = {
                 "host": host,
                 "service": service,
@@ -71,8 +266,10 @@ class RecommendationEngine:
                 "explanation": explanation,
                 "attacker_perspective": attacker_perspective,
                 "remediation": remediation_steps,
-                "references": references[:5], # Limit to top 5
-                "priority": priority
+                "references": references[:5], 
+                "priority": priority,
+                "confidence_level": conf_level,
+                "justification": justification
             }
             
             self.save_recommendation_to_db(rec_obj)
@@ -108,225 +305,194 @@ class RecommendationEngine:
 
     def generate_explanation(self, metadata: Dict[str, Any], service: str, version: str) -> str:
         """
-        NLP explaination generator following precise template.
+        Deeply differentiated expert explanation with intra-CWE variation and severity awareness.
         """
-        description = metadata.get("description", "")
-        cwe = metadata.get("cwe", "unknown weakness").lower()
-
-        if not description:
-            return f"This vulnerability affects outdated {service} versions and involves {cwe}. The flaw can trigger unintended behavior, potentially allowing attackers to compromise the system."
-
-        try:
-            # Fit TF-IDF to find the top keywords for summarization context
-            X = self.vectorizer.fit_transform([description])
-            feature_names = self.vectorizer.get_feature_names_out()
-            scores = X.toarray().flatten()
+        severity = metadata.get("severity") or "HIGH"
+        cwe_id = metadata.get("cwe_id") or ""
+        cwe_tag = next((tag for tag in self.CWE_MAPPING if tag in (metadata.get("cwe") or "").upper() or tag in cwe_id.upper()), None)
+        
+        # 1. Opening variations (Avoid starting all with "The [service]...")
+        openings = [
+            f"Detailed analysis of the {service} environment confirms a verified vulnerability.",
+            f"We have identified a specific security flaw that affects the active {service} instance.",
+            f"The current {service} deployment on this host shows signs of a vulnerability pattern.",
+            f"Security inspection of the {service} service reveals a verified weakness.",
+            f"Observation of the {service} runtime indicates a potential security risk."
+        ]
+        
+        # 2. Reasoning logic based on CWE
+        if cwe_tag:
+            mapping = self.CWE_MAPPING[cwe_tag]
+            behavior = random.choice(mapping["behaviors"])
+            impact = random.choice(mapping["impacts"])
             
-            # top keywords
-            keywords = [feature_names[i] for i in scores.argsort()[-3:][::-1] if len(feature_names[i]) > 2]
-            kw_str = " ".join(keywords) if keywords else "data processing"
+            reasoning_variants = [
+                f"This issue relates to {behavior}, which frequently leads to {impact}.",
+                f"The core flaw involves {behavior}. In a production setting, this allows for {impact}.",
+                f"Because of {behavior}, an adversary can trigger {impact}.",
+                f"We observed {behavior}, a condition that directly enables {impact}."
+            ]
+            reasoning = random.choice(reasoning_variants)
             
-            # Impact guess
-            desc_lower = description.lower()
-            if "read" in desc_lower or "disclosure" in desc_lower or "memory" in cwe:
-                impact = "read sensitive memory data or crash the application"
-            elif "execute" in desc_lower or "code" in desc_lower or "rce" in desc_lower:
-                impact = "achieve arbitrary code execution or take complete control of the system"
-            elif "privilege" in desc_lower or "escalate" in desc_lower:
-                impact = "escalate administrative privileges or pivot through the network"
-            elif "cross-site" in cwe or "xss" in cwe:
-                impact = "execute malicious scripts in user sessions or steal authentication tokens"
-            elif "injection" in cwe or "sql" in cwe:
-                impact = "bypass authentication barriers or extract raw database contents"
-            elif "denial" in desc_lower or "crash" in desc_lower or "dos" in desc_lower:
-                impact = "trigger resource exhaustion or persistently crash the service"
-            else:
-                impact = "obtain unauthorized access or disrupt core application availability"
-                
-            v_str = f"{service} versions" if version else f"{service} implementations"
+            # 3. Why This Matters (Contextual Variation)
+            why_matters_map = {
+                "CWE-125": ["Data leakage can lead to regulatory fines and loss of client trust.", "Unintended memory exposure often reveals internal system configuration.", "Sensitive information disclosure threatens the overall security of the platform."],
+                "CWE-416": ["This is a critical risk as it allows threat actors to pivot through your internal network.", "Memory corruption at this level often leads to full administrative takeover.", "Dangling pointers are a primary vector for remote code execution."],
+                "CWE-787": ["Impacts include immediate downtime for users and potential host instability.", "Buffer overflows are frequently weaponized for persistent system control.", "Memory corruption here allows for lateral movement within the network."],
+                "CWE-79": ["Attackers can steal user credentials en masse or hijack administrative sessions.", "User-side script execution allows for widespread session theft and phishing.", "Bypassing browser-side security can lead to cross-site request forgery."],
+                "CWE-89": ["Data theft from core databases can lead to total loss of business integrity.", "Unauthorized SQL execution often bypasses all authentication layers.", "Database compromise puts every record in the system at immediate risk."],
+                "CWE-78": ["Execution vulnerabilities allow for total system takeover and persistent backdoors.", "OS-level command injection is a terminal threat to the entire infrastructure.", "Command execution on a web server allows for direct shell access for attackers."],
+                "CWE-77": ["Remote execution is the most critical threat, leading to complete infrastructure compromise.", "Unsanitized command processing allows for immediate host exploitation.", "Payload execution at this level bypasses all traditional perimeter defenses."],
+                "CWE-22": ["Exposure of internal configuration files (like /etc/passwd or config.php) can lead to total system breach.", "Directory traversal often reveals hidden credentials and source code.", "Accessing restricted files allows attackers to map internal security controls."]
+            }
             
-            explanation = f"This vulnerability affects outdated {v_str} and occurs when the {cwe} processes malformed {kw_str} input. "
-            explanation += f"The flaw can trigger a security breach, potentially allowing attackers to {impact}."
-                 
-            return explanation
+            matters_list = why_matters_map.get(cwe_tag, ["This flaw bypasses core security assumptions and requires immediate remediation."])
+            matters = random.choice(matters_list)
+            
+            # Severity Awareness: Add stronger emphasis for Critical
+            if "CRITICAL" in str(severity).upper():
+                matters = f"URGENT: {matters} This vulnerability demands immediate intervention to prevent catastrophic failure."
+            
+        else:
+            # Fallback
+            reasoning_fallbacks = [
+                "The vulnerability stems from improper handling of malformed input, allowing for unexpected state transitions.",
+                "The underlying logic fails to adequately sanitize input data, creating a condition for unintended behavior.",
+                "Analysis suggests a failure in the input processing layer, potentially exposing an internal logic error."
+            ]
+            reasoning = random.choice(reasoning_fallbacks)
+            matters = "Bypassing security controls at this layer can lead to unauthorized data access or service disruption."
 
-        except Exception as e:
-            logger.error(f"NLP explanation failed: {e}")
-            return f"This vulnerability affects outdated {service} versions and occurs when the {cwe} processes malformed input. The flaw can trigger insecure behavior, potentially allowing attackers to compromise the application."
+        explanation = f"{random.choice(openings)} {reasoning} Why this matters: {matters}"
+        return explanation
 
     def generate_attack_scenario(self, vuln: Dict[str, Any], metadata: Dict[str, Any], service: str, port: Any) -> str:
         """
-        Generate short attacker perspective explanation based on attack vectors.
+        Deeply randomized CWE-aware attacker perspective.
         """
+        cwe_id = metadata.get("cwe_id") or ""
+        cwe_tag = next((tag for tag in self.CWE_MAPPING if tag in (metadata.get("cwe") or "").upper() or tag in cwe_id.upper()), None)
+        
         vector = metadata.get("attack_vector", "NETWORK").lower()
-        complexity = metadata.get("attack_complexity", "LOW").lower()
-        cwe = metadata.get("cwe", "").lower()
+        cvss = float(vuln.get("cvss_score", 0.0))
         
-        port_context = str(port) if port and str(port) not in ["N/A", "0", ""] else "any active port"
-        vector_text = "network" if "network" in vector else ("local" if "local" in vector else "specially crafted")
+        is_public = str(port) in ["80", "443", "21", "22", "25", "53"]
+        exposure_ctx = "externally reachable" if is_public else "internal-only"
         
-        if "overflow" in cwe or "memory" in cwe:
-            flaw = "memory corruption flaw"
-            impact = "memory disclosure or denial of service"
-        elif "injection" in cwe or "sql" in cwe:
-            flaw = "injection flaw"
-            impact = "database extraction or authentication bypass"
-        elif "cross-site" in cwe or "xss" in cwe:
-            flaw = "script injection flaw"
-            impact = "session hijacking or unauthorized actions"
-        elif "traversal" in cwe or "path list" in cwe:
-            flaw = "path traversal flaw"
-            impact = "sensitive file disclosure"
+        if cwe_tag:
+            attack_variants = self.CWE_MAPPING[cwe_tag]["attacks"]
+            attack_type = random.choice(attack_variants)
+            scenarios = [
+                f"An attacker would likely utilize a {attack_type} against the {exposure_ctx} {service} service on port {port}.",
+                f"Adversarial exploitation would involve a {attack_type} delivered over {vector} channels to port {port}.",
+                f"The presence of this service on port {port} exposes the host to a {attack_type} targeting vulnerable {service} logic.",
+                f"From an adversarial standpoint, the {exposure_ctx} status of port {port} is a prime target for a {attack_type}."
+            ]
         else:
-            flaw = f"{cwe if cwe else 'security'} flaw"
-            impact = "unauthorized access or system compromise"
-            
-        scenario = f"If the vulnerable {service} service is exposed on port {port_context}, "
-        scenario += f"an attacker could send {vector_text} requests to exploit the {flaw}, "
-        scenario += f"potentially allowing {impact}."
-            
-        return scenario
+            scenarios = [
+                f"An attacker could send crafted {vector} requests to port {port} to exploit this {service} flaw.",
+                f"Adversarial logic involves identifying the exposure on port {port} and delivering a tailored payload.",
+                f"The {exposure_ctx} status of port {port} allows for remote probing followed by exploit delivery."
+            ]
+        
+        return random.choice(scenarios)
 
     def generate_attack_chain(self, vuln: Dict[str, Any], metadata: Dict[str, Any], service: str, port: Any) -> List[str]:
         """
-        Integrates exploitation insights to form a sequenced attacker path.
+        Realistic, service-aware attack path simulation.
         """
-        cve_id = vuln.get("cve_id", "a known vulnerability")
-        cwe = metadata.get("cwe", "").lower()
-        vector = metadata.get("attack_vector", "NETWORK").lower()
+        cve_id = vuln.get("cve_id", "Vulnerability")
+        cwe = metadata.get("cwe", "Weakness").lower()
+        service_l = service.lower()
         
-        chain = []
-        port_txt = str(port) if port and str(port) not in ["N/A", "0", ""] else "an unknown port"
+        chain = [f"Reconnaissance: Port {port} identified as accessible endpoint."]
         
-        # Step 1: Reconnaissance
-        chain.append(f"Reconnaissance: attacker scans the host and finds port {port_txt} open")
-        
-        # Step 2: Service Detection
-        chain.append(f"Service Detection: the server is running {service}")
-        
-        # Step 3: Vulnerability Matching
-        cve_str = f"matches {cve_id}" if cve_id != "a known vulnerability" else "matches a known vulnerability"
-        chain.append(f"Vulnerability Matching: detected version {cve_str}")
-        
-        # Step 4: Exploitation
-        if "network" in vector:
-            act = "sends a crafted remote payload"
-        elif "local" in vector:
-            act = "executes a local exploit script"
+        # Step 2: Contextual Fingerprinting
+        if "php" in service_l:
+            chain.append(f"Fingerprinting: Detected PHP application environment on {service}.")
+        elif "apache" in service_l or "nginx" in service_l:
+            chain.append(f"Fingerprinting: Web server identified as {service}.")
         else:
-            act = "delivers a crafted payload"
-        chain.append(f"Exploitation: attacker {act} to target the {cwe} flaw")
-        
-        # Step 5: Impact
-        if "privilege" in cwe:
-            impact = "escalation to administrative privileges"
-        elif "read" in cwe or "disclosure" in cwe or "memory" in cwe:
-            impact = "memory disclosure or unauthorized data access"
-        elif "execute" in cwe or "code" in cwe:
-            impact = "arbitrary remote code execution"
+            chain.append(f"Fingerprinting: Service banner confirms {service} usage.")
+
+        # Step 3: Vulnerability Mapping
+        chain.append(f"Analysis: Target version mapped to {cve_id} ({cwe}).")
+
+        # Step 4: Exploitation (Dynamic)
+        if "injection" in cwe:
+            chain.append("Exploitation: Delivery of crafted input to bypass input filters.")
+        elif "overflow" in cwe:
+            chain.append("Exploitation: Memory buffer overflow via oversized packet.")
         else:
-            impact = "application crash or confidentiality loss"
-            
-        chain.append(f"Impact: {impact}")
-        
+            chain.append("Exploitation: Weaponization of public exploit code.")
+
+        # Step 5: Post-Exploitation
+        if "rce" in cve_id.lower() or "execution" in cwe:
+            chain.append("Post-Exploit: Spawning of interactive shell for system control.")
+        else:
+            chain.append("Post-Exploit: Unauthorized exfiltration of system memory/data.")
+
         return chain
 
     def generate_risk_summary(self, vuln: Dict[str, Any], metadata: Dict[str, Any], priority: str, cvss: float) -> str:
         """
-        Add a short professional risk summary.
+        Summarizes risk with a focus on 'business threat' logic.
         """
-        service = vuln.get('service') or vuln.get('technology_stack') or 'service'
-        vector = metadata.get("attack_vector", "NETWORK").lower()
-        if "network" in vector:
-            exp_text = "remote exploitability"
-        elif "local" in vector:
-            exp_text = "local exploitability requiring prior access"
-        else:
-            exp_text = "exploitability"
-            
-        cwe = metadata.get("cwe", "").lower()
-            
-        if "memory" in cwe or "read" in cwe or "disclosure" in cwe:
-            imp_text = "expose sensitive memory or disrupt application availability"
-        elif "execute" in cwe or "code" in cwe:
-            imp_text = "allow arbitrary code execution and system takeover"
-        elif "injection" in cwe or "sql" in cwe:
-            imp_text = "extract sensitive database records or bypass authentication"
-        elif "cross-site" in cwe or "xss" in cwe:
-            imp_text = "hijack active user sessions and rewrite active DOM content"
-        else:
-            imp_text = "compromise host integrity or availability"
-            
-        summary = f"This vulnerability is rated {priority.upper()} due to its {exp_text} "
-        summary += f"and the potential to {imp_text}."
+        anomaly = float(vuln.get("traffic_anomaly_score", 0.0))
+        
+        summaries = [
+            f"This represents a {priority} threat level. The high CVSS of {cvss} suggests significant potential damage.",
+            f"A {priority} priority risk has been flagged. The attack surface on this port allows for reliable exploitation.",
+            f"Security analysis classifies this as {priority}. Remediation should be prioritized to prevent unauthorized access."
+        ]
+        
+        summary = random.choice(summaries)
+        if anomaly > 0.5:
+            summary += " NOTE: Abnormal traffic patterns detected near this service suggest possible probing activity."
             
         return summary
-
     def generate_remediation(self, vuln: Dict[str, Any], metadata: Dict[str, Any], service: str, port: Any, version: str) -> List[str]:
         """
-        Rule-based remediation generating multiple specific context-aware steps.
+        Differentiated remediation with clean grouped labels.
         """
-        steps = []
-        cwe = metadata.get("cwe", "").lower()
-        desc = metadata.get("description", "").lower()
-        service_lower = service.lower()
-        
-        # 1. Version / Core Patching
+        remediation = []
         cve_id = vuln.get('cve_id')
-        if version:
-            steps.append(f"Upgrade {service} to version {version} or later where the vulnerability is patched.")
-        elif cve_id:
-            steps.append(f"Upgrade {service} to the latest stable release containing the patch for {cve_id}.")
-        else:
-            steps.append(f"Ensure {service} is running the latest stable secure release.")
-
-        # 2. Service Specific Rules
-        if "php" in service_lower:
-            steps.append("Disable unnecessary PHP extensions such as XML-RPC if not required.")
-            steps.append("Restrict access to vulnerable endpoints through firewall rules.")
-            if "xml" in desc or "rpc" in desc:
-                steps.append("Deploy WAF rules to detect malicious XML payloads.")
+        service_lower = service.lower()
+        cwe_id = metadata.get("cwe_id") or ""
+        cwe_tag = next((tag for tag in self.CWE_MAPPING if tag in (metadata.get("cwe") or "").upper() or tag in cwe_id.upper()), None)
         
-        elif "apache" in service_lower or "httpd" in service_lower:
-            if "traversal" in desc or "directory" in desc:
-                steps.append("Implement strict `AllowOverride None` and `Require all denied` configuration directives on web roots.")
-            if "module" in desc or "mod_" in desc:
-                steps.append("Disable deprecated or unused Apache modules dynamically.")
-            steps.append("Deploy WAF rules to block malicious path traversal requests.")
-            
-        elif "nginx" in service_lower:
-            steps.append("Toggle `server_tokens off` configuration mapping to obscure running versions.")
-            if "buffer" in desc or "memory" in desc:
-                steps.append("Tighten `client_max_body_size` memory buffers to prevent exhaustion.")
-                
-        elif "ssh" in service_lower or str(port) == "22":
-            steps.append("Restrict SSH access to trusted internal IP ranges only via network firewalls.")
-            steps.append("Disable root login directly by modifying the PermitRootLogin configuration directive.")
-            
-        elif "mysql" in service_lower or "postgres" in service_lower or str(port) in ["3306", "5432"]:
-            steps.append("Isolate database network listeners strictly to the local loopback interface or trusted subnets.")
+        # 1. IMMEDIATE FIXES
+        if version:
+            remediation.append(f"Immediate Fix: Force update {service} to version {version} (or newer) to patch the underlying flaw.")
+        elif cve_id:
+            remediation.append(f"Immediate Fix: Apply security update for {cve_id} across all production {service} instances.")
+        else:
+            remediation.append(f"Immediate Fix: Redeploy {service} using a hardened container or patched image.")
 
-        # 3. CWE Specific Rules
-        if "cross-site scripting" in cwe or "xss" in desc:
-            steps.append("Implement a strict Content-Security-Policy (CSP) header.")
-            steps.append("Ensure context-aware output encoding is used in the frontend application.")
-            
-        if "injection" in cwe or "sql" in desc:
-            steps.append("Refactor database queries in the application layer to exclusively use parameterized statements (Prepared Statements).")
-            steps.append("Deploy a Web Application Firewall (WAF) rule to immediately block common injection payloads.")
+        # 2. HARDENING (Grouped)
+        hardening_steps = []
+        if cwe_tag:
+            hardening_steps.append(self.CWE_MAPPING[cwe_tag]['hardening'])
+        
+        if "php" in service_lower:
+            hardening_steps.append("Audit php.ini and disable dangerous functions like shell_exec.")
+        elif "apache" in service_lower or "nginx" in service_lower:
+            hardening_steps.append(f"Deploy a Web Application Firewall (WAF) layer in front of port {port}.")
+        
+        if str(port) not in ["80", "443", "N/A"]:
+            hardening_steps.append(f"Implement an IP-based whitelist to block public access to port {port}.")
 
-        # 4. Port / Network Rules
-        port_str = str(port)
-        if port_str and port_str not in ["80", "443", "N/A", "0"]:
-            steps.append(f"Restrict public access to port {port} using VPC security groups or host firewalls (iptables/ufw).")
+        if hardening_steps:
+            remediation.append("Hardening:")
+            for step in hardening_steps:
+                remediation.append(f"- {step}")
 
-        # Deduplicate
-        unique_steps = []
-        for s in steps:
-            if s not in unique_steps:
-                unique_steps.append(s)
+        # 3. MONITORING (Grouped)
+        remediation.append("Monitoring:")
+        remediation.append(f"- Enable enhanced logging on the {service} host to detect exploitation attempts.")
+        remediation.append("- Configure real-time alerts for any abnormal outbound traffic from this host.")
 
-        return unique_steps
+        return remediation
 
     def prioritize_recommendations(self, cvss: float, risk_score: Any, model6_severity: str) -> str:
         """
