@@ -26,6 +26,11 @@ def signup_page():
     return render_template("signup.html")
 
 
+@view_bp.route("/forgot-password")
+def forgot_password_page():
+    return render_template("forgot_password.html")
+
+
 @view_bp.route("/home")
 @view_bp.route("/home.html")
 @view_bp.route("/dashboard")

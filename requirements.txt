@@ -12,3 +12,4 @@ urllib3
 scapy
 beautifulsoup4
 pdfkit
+python-dotenv

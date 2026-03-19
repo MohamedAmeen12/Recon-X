@@ -32,16 +32,15 @@ document.getElementById("loginForm").addEventListener("submit", async (event) =>
       if (data.role === "admin") {
         window.location.href = "/admin";
       } else {
-        window.location.href = "home.html";
+        window.location.href = "/home";
       }
     } else {
       console.error("Login failed:", data.message);
-      alert(data.message); // optional
+      alert(data.message);
     }
   } catch (error) {
     console.error("Error connecting to server:", error);
   }
-});
 });
 
 // ==========================================

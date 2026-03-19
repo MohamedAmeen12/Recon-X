@@ -7,6 +7,13 @@ import sys
 from flask import Flask
 from flask_cors import CORS
 
+# Load environment variables from .env file
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # python-dotenv not installed; env vars must be set manually
+
 # ====================================================
 # PATH CONFIGURATION
 # ====================================================
