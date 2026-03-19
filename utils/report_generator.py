@@ -50,6 +50,7 @@ def generate_html_report(scan_results, domain, username, scan_id):
     vulns = scan_results.get("model6", []) or []
     technologies = scan_results.get("technology_fingerprints", []) or []
     recommendations = scan_results.get("recommendations", []) or []
+    strategies = scan_results.get("model5", {}).get("strategies", []) or []
     
     # Severity counts
     critical_count = sum(1 for v in vulns if v and str(v.get("risk_level", v.get("severity", ""))).upper() == "CRITICAL")
@@ -228,6 +229,55 @@ def generate_html_report(scan_results, domain, username, scan_id):
             <div class="chain-step"><div class="chain-box">4. Data Exposure<br><span style="font-weight: normal; font-size: 8pt; color: #166534;">Accessing sensitive systems</span></div></div>
         </div>
 
+        {% if strategies %}
+        <div class="page-break"></div>
+        <h1 class="section-title">Exploitation Strategy & Attack Paths</h1>
+        <p>The following predicted attack paths map discovered vulnerabilities to their logical exploitation chains based on CWE mechanics and public exploit availability.</p>
+        
+        {% for strat in strategies %}
+        {% set sev = (strat.get('severity') or "UNKNOWN")|upper %}
+        <div class="cve-card cve-card-{{ sev }}">
+            <div class="cve-header">
+                <h3 class="cve-title cve-title-{{ sev }}">{{ strat.get('cve_id') }}</h3>
+                <span class="badge badge-{{ sev|lower }}">{{ strat.get('evidence_status', 'Unknown')|upper }}</span>
+            </div>
+            <div class="cve-meta-bar">
+                <div class="cve-meta-item">Service: <strong>{{ strat.get('service', 'N/A') }}</strong></div>
+                <div class="cve-meta-item">CWE: <strong>{{ strat.get('cwe_id', 'N/A') }}</strong></div>
+            </div>
+            <div class="cve-body">
+                <div class="cve-section">
+                    <p style="margin:0; font-size:10pt; font-style: italic;">"{{ strat.get('explanation', '') }}"</p>
+                    <p style="margin-top:8px; font-size:10pt;"><strong>MITRE TTP:</strong> <span style="font-family: monospace;">{{ strat.get('mitre_technique', 'N/A') }}</span></p>
+                </div>
+                
+                {% if strat.get('attack_chain') %}
+                <div class="cve-section cve-section-remediation" style="background-color: #f9fafb; border-color: #e5e7eb;">
+                    <div class="cve-label" style="color: #4b5563;">🎯 Predicted Attack Path</div>
+                    <div style="font-size:10pt; font-weight: 600; color: #374151; margin-top: 5px;">
+                        {% for step in strat.get('attack_chain') %}
+                            <span style="display:inline-block; padding: 4px 8px; background: white; border: 1px solid #d1d5db; border-radius: 4px;">{{ step }}</span>
+                            {% if not loop.last %}<span style="color: #9ca3af; margin: 0 4px;">→</span>{% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if strat.get('exploit_db_reference') %}
+                <div class="cve-section cve-refs">
+                    <div class="cve-label">🔗 Exploit-DB Intelligence</div>
+                    <ul style="margin:5px 0 0 0; padding-left:20px; font-size:9pt;">
+                        {% for ref in strat.get('exploit_db_reference') %}
+                        <li><a href="{{ ref.get('url', '#') }}" target="_blank">{{ ref.get('title', 'Reference') }}</a></li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+        {% endif %}
+
         <h1 class="section-title">Vulnerability Summary</h1>
         <table>
             <thead><tr><th>CVE ID</th><th>Severity</th><th>CVSS</th><th>Service / Target</th></tr></thead>
@@ -300,6 +350,7 @@ def generate_html_report(scan_results, domain, username, scan_id):
         vulns=vulns,
         technologies=technologies,
         recommendations=recommendations,
+        strategies=strategies,
         critical_count=critical_count,
         high_count=high_count,
         medium_count=medium_count,

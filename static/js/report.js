@@ -332,7 +332,85 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     /* ===============================
-       5. FINAL RISK TABLE (Model 6)
+       5. EXPLOITATION STRATEGIES (Model 5)
+    =============================== */
+    let model5HTML = "";
+    if (r.model5 && r.model5.strategies && r.model5.strategies.length > 0) {
+      model5HTML = `
+        <div class="report-section mt-10">
+          <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
+            <i class="ph-bold ph-sword text-red-500"></i> Exploitation Strategy & Attack Paths
+          </h2>
+          <div class="space-y-4">
+            ${r.model5.strategies.map(strat => {
+              const sevClass = getSeverityColor(strat.severity);
+              const hasChain = strat.attack_chain && strat.attack_chain.length > 0;
+              
+              let chainHTML = "";
+              if (hasChain) {
+                chainHTML = `
+                  <div class="mt-4 p-4 bg-gray-50 dark:bg-white/5 rounded-lg border border-gray-100 dark:border-white/5">
+                    <h5 class="text-xs font-bold uppercase text-gray-500 tracking-wider mb-3">Predicted Attack Path</h5>
+                    <div class="flex flex-wrap items-center gap-2">
+                      ${strat.attack_chain.map((step, idx) => `
+                        <div class="flex items-center">
+                          <span class="px-3 py-1.5 bg-white dark:bg-black/20 border border-gray-200 dark:border-white/10 rounded-md text-xs font-semibold text-gray-700 dark:text-gray-300 shadow-sm">${step}</span>
+                          ${idx < strat.attack_chain.length - 1 ? '<i class="ph-bold ph-arrow-right text-gray-400 mx-2"></i>' : ''}
+                        </div>
+                      `).join('')}
+                    </div>
+                  </div>
+                `;
+              }
+
+              let refsHTML = "";
+              if (strat.exploit_db_reference && strat.exploit_db_reference.length > 0) {
+                refsHTML = `
+                  <div class="mt-4 pt-4 border-t border-gray-100 dark:border-white/5">
+                    <h5 class="text-xs font-bold uppercase text-gray-500 tracking-wider mb-2">Exploit-DB Intelligence</h5>
+                    <ul class="space-y-1">
+                      ${strat.exploit_db_reference.map(ref => `
+                        <li>
+                          <a href="${ref.url}" target="_blank" class="text-xs text-blue-500 hover:underline flex items-start gap-1">
+                            <i class="ph-bold ph-link mt-0.5"></i> <span>${ref.title || 'Exploit Reference'}</span>
+                          </a>
+                        </li>
+                      `).join('')}
+                    </ul>
+                  </div>
+                `;
+              }
+
+              return `
+                <div class="glass-card p-5 relative overflow-hidden group">
+                  <div class="absolute left-0 top-0 bottom-0 w-1 ${sevClass.includes('red') ? 'bg-red-500' : (sevClass.includes('orange') ? 'bg-orange-500' : 'bg-gray-500')}"></div>
+                  <div class="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-3 pl-2">
+                    <div>
+                      <h4 class="text-lg font-bold font-mono text-gray-800 dark:text-gray-100 mb-1">${strat.cve_id}</h4>
+                      <p class="text-sm font-medium text-gray-500">Service: <span class="text-gray-700 dark:text-gray-300">${strat.service || "N/A"}</span> | CWE: <span class="bg-gray-100 dark:bg-white/10 px-1.5 py-0.5 rounded">${strat.cwe_id || "N/A"}</span></p>
+                    </div>
+                    <span class="badge ${sevClass} px-3 py-1 rounded text-xs font-bold uppercase shrink-0">${strat.evidence_status}</span>
+                  </div>
+                  
+                  <div class="mt-2 pl-2 text-sm text-gray-600 dark:text-gray-300">
+                    <p class="italic">"${strat.explanation || "No explanation provided."}"</p>
+                    <p class="mt-2 font-medium text-gray-700 dark:text-gray-400"><i class="ph-bold ph-crosshair mr-1"></i> MITRE TTP: <span class="font-mono text-xs">${strat.mitre_technique || 'N/A'}</span></p>
+                  </div>
+
+                  <div class="pl-2">
+                    ${chainHTML}
+                    ${refsHTML}
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    /* ===============================
+       6. FINAL RISK TABLE (Model 6)
     =============================== */
     let model6HTML = "";
     if (model6Data.length) {
@@ -424,6 +502,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       ${clustersHTML}
       ${techHTML}
       ${anomaliesHTML}
+      ${model5HTML}
       ${model6HTML}
       ${recommendationsHTML}
     `;
