@@ -573,12 +573,24 @@ document.addEventListener("DOMContentLoaded", async () => {
             recContent.innerHTML = `
               <div class="space-y-4">
                 ${recArray.map(rec => {
+                  const sevClass = getSeverityColor(rec.severity || rec.risk_level);
+                  
+                  // Style remediation steps with bold prefixes
                   let remList = "";
                   if (Array.isArray(rec.remediation)) {
-                    remList = "<ul class='list-disc pl-5 mt-2 space-y-1'>" + rec.remediation.map(step => `<li>${step}</li>`).join("") + "</ul>";
+                    remList = "<ul class='list-disc pl-5 mt-2 space-y-1'>" + 
+                      rec.remediation.map(step => {
+                        const parts = step.split(': ');
+                        if (parts.length > 1) {
+                          return `<li><span class="font-bold text-gray-700 dark:text-gray-200">${parts[0]}:</span> ${parts.slice(1).join(': ')}</li>`;
+                        }
+                        return `<li>${step}</li>`;
+                      }).join("") + "</ul>";
                   } else {
                     remList = `<p class='mt-2'>${rec.remediation || "—"}</p>`;
                   }
+
+                  const confClass = (rec.confidence_level === "HIGH") ? "bg-green-500/10 text-green-600 border-green-200" : (rec.confidence_level === "MEDIUM" ? "bg-blue-500/10 text-blue-600 border-blue-200" : "bg-gray-500/10 text-gray-500 border-gray-200");
 
                   let refListHTML = "";
                   if (Array.isArray(rec.references) && rec.references.length > 0) {
@@ -587,27 +599,29 @@ document.addEventListener("DOMContentLoaded", async () => {
                       `</ul></div>`;
                   }
 
-                  const sevClass = getSeverityColor(rec.severity || rec.risk_level);
-
                   return `
                     <div class="glass-card p-5 relative overflow-hidden group">
-                      <div class="absolute left-0 top-0 bottom-0 w-1 ${sevClass.includes('red') ? 'bg-red-500' : 'bg-orange-500'}"></div>
+                      <div class="absolute left-0 top-0 bottom-0 w-1 ${sevClass.includes('red') ? 'bg-red-500' : (sevClass.includes('orange') ? 'bg-orange-500' : 'bg-gray-500')}"></div>
                       <div class="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-3 pl-2">
                           <div>
-                             <h4 class="text-lg font-bold font-mono text-gray-800 dark:text-gray-100 mb-1">${rec.cve_id || "Unknown Vulnerability"}</h4>
+                             <div class="flex items-center gap-2 mb-1">
+                               <h4 class="text-lg font-bold font-mono text-gray-800 dark:text-gray-100">${rec.cve_id || "Unknown Vulnerability"}</h4>
+                               <span class="px-2 py-0.5 rounded border text-[10px] font-bold uppercase ${confClass}">${rec.confidence_level || 'N/A'} CONFIDENCE</span>
+                             </div>
                              <p class="text-sm font-medium text-gray-500">Service: <span class="text-gray-700 dark:text-gray-300">${rec.service || "N/A"}</span> | Port: <span class="bg-gray-100 dark:bg-white/10 px-1.5 py-0.5 rounded">${rec.port !== undefined && rec.port !== null ? rec.port : "N/A"}</span></p>
                           </div>
                           <span class="badge ${sevClass} px-3 py-1 rounded text-xs font-bold uppercase shrink-0">${rec.priority || rec.severity || "Unknown"}</span>
                       </div>
                       
-                      <div class="mt-4 pl-2 text-sm text-gray-600 dark:text-gray-300">
-                        <p class="italic">"${rec.explanation || "—"}"</p>
+                      <div class="mt-2 pl-2 text-sm text-gray-600 dark:text-gray-300">
+                        <p class="font-medium text-gray-800 dark:text-gray-100 mb-2">Confidence Justification: <span class="font-normal text-gray-500">${rec.justification || "Determined by service fingerprinting and CVSS data."}</span></p>
+                        <p class="italic">"${rec.explanation || "No explanation provided."}"</p>
                         ${rec.attacker_perspective ? `<p class="mt-3 p-3 bg-red-500/5 border border-red-500/10 rounded-lg text-red-600 dark:text-red-400"><i class="ph-bold ph-skull mr-1"></i> <strong class="font-medium">Attacker Perspective:</strong> ${rec.attacker_perspective}</p>` : ''}
                       </div>
 
-                      <div class="mt-4 pl-2 text-sm">
-                          <h5 class="text-xs font-bold uppercase text-emerald-600 dark:text-emerald-400 tracking-wider flex items-center gap-1"><i class="ph-bold ph-check-square"></i> Actionable Remediation</h5>
-                          <div class="text-gray-700 dark:text-gray-300">${remList}</div>
+                      <div class="mt-4 pl-2">
+                        <h5 class="text-xs font-bold uppercase text-emerald-600 dark:text-emerald-400 tracking-wider flex items-center gap-1"><i class="ph-bold ph-check-square"></i> Actionable Remediation</h5>
+                        <div class="text-gray-700 dark:text-gray-300">${remList}</div>
                       </div>
                       
                       <div class="pl-2">

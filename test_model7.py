@@ -9,7 +9,7 @@ from models.model7_recommendation_engine import RecommendationEngine
 
 engine = RecommendationEngine()
 
-# Mock Model 6 output
+# Mock vulnerabilities with varied CWEs
 mock_vulnerabilities = [
     {
         "subdomain": "test.target.com",
@@ -18,19 +18,30 @@ mock_vulnerabilities = [
         "version": "7.2.0",
         "port": 80,
         "cve_id": "CVE-2019-9020",
+        "cwe": "CWE-125",
         "severity": "CRITICAL",
         "cvss_score": 9.8,
         "risk_score": 0.91
     },
     {
-        "subdomain": "test.target.com",
+        "subdomain": "db.target.com",
+        "service": "MySQL",
+        "port": 3306,
+        "cve_id": "CVE-2022-21449",
+        "cwe": "CWE-89",
+        "severity": "HIGH",
+        "cvss_score": 7.5,
+        "risk_score": 0.72
+    },
+    {
+        "subdomain": "panel.target.com",
         "service": "Apache",
         "port": 80,
         "cve_id": "CVE-2021-41773",
-        "severity": "HIGH",
-        "cvss_score": 7.5,
-        "risk_level": "HIGH",
-        "risk_score": 0.82
+        "cwe": "CWE-78",
+        "severity": "CRITICAL",
+        "cvss_score": 10.0,
+        "risk_score": 0.98
     }
 ]
 

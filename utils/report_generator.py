@@ -301,9 +301,13 @@ def generate_html_report(scan_results, domain, username, scan_id):
         {% for rec in (recommendations or []) %}
         {% if rec is not none %}
         {% set sev = (rec.get('severity') or "UNKNOWN")|upper %}
+        {% set conf = rec.get('confidence_level', 'MEDIUM') %}
         <div class="cve-card cve-card-{{ sev }}">
             <div class="cve-header">
-                <h3 class="cve-title cve-title-{{ sev }}">{{ rec.get('cve_id', 'Unknown Vulnerability') }}</h3>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <h3 class="cve-title cve-title-{{ sev }}">{{ rec.get('cve_id', 'Unknown Vulnerability') }}</h3>
+                    <span style="font-size: 8pt; font-weight: 700; padding: 2px 6px; border: 1px solid #d1d5db; border-radius: 4px; color: #6b7280;">{{ conf }} CONFIDENCE</span>
+                </div>
                 <span class="badge badge-{{ sev|lower }}">{{ sev }}</span>
             </div>
             <div class="cve-meta-bar">
@@ -312,17 +316,45 @@ def generate_html_report(scan_results, domain, username, scan_id):
                 <div class="cve-meta-item">CVSS: <strong>{{ rec.get('cvss_score') or rec.get('cvss') or "N/A" }}</strong></div>
             </div>
             <div class="cve-body">
-                {% if rec.get('risk_summary') %}<div class="cve-section"><div class="cve-label">Risk Summary</div><p style="margin:0; font-size:10pt;">{{ rec.get('risk_summary') }}</p></div>{% endif %}
-                {% if rec.get('explanation') %}<div class="cve-section"><div class="cve-label">Explanation</div><p style="margin:0; font-size:10pt;">{{ rec.get('explanation') }}</p></div>{% endif %}
-                {% if rec.get('attacker_perspective') %}<div class="cve-section"><div class="cve-label">Attacker Perspective</div><p style="margin:0; font-size:10pt;">{{ rec.get('attacker_perspective') }}</p></div>{% endif %}
+                {% if rec.get('justification') %}
+                <div class="cve-section">
+                    <div class="cve-label" style="font-size: 8pt; color: #6b7280;">Confidence Justification</div>
+                    <p style="margin:0; font-size:10pt; color: #374151;">{{ rec.get('justification') }}</p>
+                </div>
+                {% endif %}
+                
+                {% if rec.get('explanation') %}
+                <div class="cve-section">
+                    <div class="cve-label">Analyst Explanation</div>
+                    <p style="margin:0; font-size:10pt;">{{ rec.get('explanation') }}</p>
+                </div>
+                {% endif %}
+
+                {% if rec.get('attacker_perspective') %}
+                <div class="cve-section">
+                    <div class="cve-label" style="color: #b91c1c;">Attacker Perspective</div>
+                    <p style="margin:0; font-size:10pt; color: #b91c1c;">{{ rec.get('attacker_perspective') }}</p>
+                </div>
+                {% endif %}
+
                 {% if rec.get('remediation') %}
                 <div class="cve-section cve-section-remediation">
-                    <div class="cve-label">🟢 Remediation Tasks</div>
-                    <ul style="margin:5px 0 0 0; padding-left:20px; font-size:10pt; color: #14532d;">
-                        {% for item in (rec.get('remediation') or []) %}<li>{{ item }}</li>{% endfor %}
+                    <div class="cve-label">🟢 Actionable Remediation</div>
+                    <ul style="margin:5px 0 0 0; padding-left:20px; font-size:10pt; color: #14532d; list-style-type: none;">
+                        {% for item in (rec.get('remediation') or []) %}
+                            {% set parts = item.split(': ') %}
+                            <li style="margin-bottom: 4px;">
+                                {% if parts|length > 1 %}
+                                    <strong>{{ parts[0] }}:</strong> {{ parts[1:]|join(': ') }}
+                                {% else %}
+                                    {{ item }}
+                                {% endif %}
+                            </li>
+                        {% endfor %}
                     </ul>
                 </div>
                 {% endif %}
+
                 {% if rec.get('references') %}
                 <div class="cve-section cve-refs">
                     <div class="cve-label">🔗 References</div>
