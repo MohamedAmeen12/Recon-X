@@ -42,7 +42,6 @@ document.getElementById("loginForm").addEventListener("submit", async (event) =>
     console.error("Error connecting to server:", error);
   }
 });
-});
 
 // ==========================================
 // VISIBILITY TOGGLE
