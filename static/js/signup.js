@@ -41,13 +41,13 @@ document.getElementById("signupForm").addEventListener("submit", async function 
     const data = await response.json();
 
     if (response.ok) {
-      // ✅ Show backend trust status to the user
-      alert(`Signup successful! Your account status is: ${data.status.toUpperCase()}`);
-
-      // Redirect if verified, otherwise keep them on signup for review
-      if (data.status === "verified") {
-        window.location.href = "login.html";
-      }
+      // ✅ Account created – pending admin approval
+      alert(
+        "Account created successfully!\n\n" +
+        "Your account is pending admin approval. " +
+        "You will be able to log in once an admin activates your account."
+      );
+      window.location.href = "/login";
     } else {
       alert(data.message || "Signup failed. Please try again.");
       console.error("Signup failed:", data);
@@ -64,9 +64,10 @@ document.getElementById("signupForm").addEventListener("submit", async function 
 function setupEyeToggle(inputId, toggleId) {
   const input = document.getElementById(inputId);
   const toggle = document.getElementById(toggleId);
-  const icon = toggle.querySelector("svg");
   
   if (!input || !toggle) return;
+
+  const icon = toggle.querySelector("svg");
 
   toggle.addEventListener("click", () => {
     if (input.type === "password") {
@@ -103,7 +104,7 @@ const strengthLabel = document.getElementById("strengthLabel");
 // Validation regexes
 const upperRegex = /[A-Z]/;
 const numRegex = /[0-9]/;
-const specialRegex = /[!@#$%^&*(),.?":{}|<>]/;
+const specialRegex = /[!@#$%^&*(),.?":{}|<>\-_=+\[\]\\/;']/;
 
 function isPasswordValid(val) {
   return val.length >= 8 && upperRegex.test(val) && numRegex.test(val) && specialRegex.test(val);
