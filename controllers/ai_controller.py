@@ -10,8 +10,10 @@ from utils.ai_security_assistant import (
     generate_summary,
     calculate_security_score,
     generate_fix_priorities,
-    answer_custom_question
+    answer_custom_question,
+    explain_biggest_risk
 )
+from utils.gemini_service import gemini_service
 from controllers.report_controller import enrich_report_data
 
 ai_bp = Blueprint('ai', __name__)
@@ -133,5 +135,41 @@ def ai_ask():
     if scan_results is None:
         return jsonify({"error": "Scan results not found"}), 404
     
+    # 1. Try traditional rule-based answer first
     response = answer_custom_question(scan_results, question)
+    
+    # 2. If rule-based fails or is generic, fallback to Gemini
+    # Generic failure message from answer_custom_question is usually "I'm sorry, I couldn't find a specific answer..."
+    if "I'm sorry, I couldn't find a specific answer" in response:
+        print(f"[AI Controller] Rule-based failed. Falling back to Gemini for question: {question}")
+        
+        # Prepare rich context for Gemini
+        try:
+            summary = generate_summary(scan_results)
+            score_info = calculate_security_score(scan_results)
+            fixes = generate_fix_priorities(scan_results)
+            biggest_risk = explain_biggest_risk(scan_results)
+            
+            rich_context = f"""
+REPORT SUMMARY:
+{summary}
+
+SECURITY SCORE & RATING:
+{score_info}
+
+TOP REPAIR PRIORITIES:
+{fixes}
+
+BIGGEST IDENTIFIED RISK:
+{biggest_risk}
+"""
+            # Call Gemini
+            gemini_response = gemini_service.ask_gemini(question, rich_context)
+            response = gemini_response
+            
+        except Exception as e:
+            print(f"[AI Controller] Hybrid error: {e}")
+            # Keep the original rule-based fallback if Gemini fails completely
+            pass
+
     return jsonify({"answer": response})
