@@ -24,369 +24,366 @@ def get_pdfkit_config():
         if os.path.exists(path):
             return pdfkit.configuration(wkhtmltopdf=path)
             
-    # If not found, return None or a dummy config and handle it in the generation function
     return None
 
 config = get_pdfkit_config()
 
 def generate_html_report(scan_results, domain, username, scan_id):
     """
-    Generates a professional HTML report using Jinja2 with Nessus-style layout.
+    Generates a high-end, modern dashboard-style HTML report for PDF export.
+    Syncs ALL data from the website scan report into the PDF.
     """
+    # --- 1. DATA EXTRACTION ---
+    subdomains = scan_results.get("raw_docs", []) or []
+    vulns_m6 = scan_results.get("model6", []) or []
+    recommendations = scan_results.get("recommendations", []) or []
+    clusters = scan_results.get("clusters", []) or []
+    tech_fingerprints = scan_results.get("technology_fingerprints", []) or []
+    anomalies = scan_results.get("http_anomalies", []) or []
+    model5 = scan_results.get("model5", {}) or {}
+    if not isinstance(model5, dict): model5 = {}
+    model5_strategies = model5.get("strategies", []) or []
+
+    # Defensive cleaning for nested fields
+    for c in clusters:
+        if not c.get("examples"): c["examples"] = []
     
-    # 1. FIX MODEL 2 PORT EXTRACTION (Requested Implementation)
+    for t in tech_fingerprints:
+        if not t.get("technologies"): t["technologies"] = []
+        for tech in t["technologies"]:
+            if not tech.get("cves"): tech["cves"] = []
+
+    for a in anomalies:
+        if not a.get("model4_result"): a["model4_result"] = {"status": "unknown", "traffic_data": {}}
+        if not a["model4_result"].get("traffic_data"): a["model4_result"]["traffic_data"] = {}
+
+    for strat in model5_strategies:
+        if not strat.get("attack_chain"): strat["attack_chain"] = []
+        if not strat.get("exploit_db_reference"): strat["exploit_db_reference"] = []
+
+    # Metrics
+    severity_counts = {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0}
+    for v in vulns_m6:
+        sev = str(v.get("risk_level", v.get("severity", ""))).upper()
+        if sev in severity_counts:
+            severity_counts[sev] += 1
+    
+    total_vulns = len(vulns_m6)
+    critical_count = severity_counts["CRITICAL"]
+    high_count = severity_counts["HIGH"]
+    
+    # Risk Score
+    risk_score = min(100, (critical_count * 25 + high_count * 10 + severity_counts["MEDIUM"] * 5) / (max(1, len(subdomains) / 2)))
+    risk_score = round(risk_score, 1)
+
+    # Ports for dashboard
     ports = []
     for host in scan_results.get("hosts", []) or []:
-        for port in host.get("ports", []) or []:
-            ports.append({
-                "port": port.get("port"),
-                "service": port.get("service"),
-                "version": port.get("version", "Unknown"),
-                "host": host.get("domain")
-            })
+        for p in host.get("ports", []) or []:
+            ports.append(p)
 
-    # Safely extract other data
-    subdomains = scan_results.get("raw_docs", []) or []
-    vulns = scan_results.get("model6", []) or []
-    technologies = scan_results.get("technology_fingerprints", []) or []
-    recommendations = scan_results.get("recommendations", []) or []
-    strategies = scan_results.get("model5", {}).get("strategies", []) or []
-    
-    # Severity counts
-    critical_count = sum(1 for v in vulns if v and str(v.get("risk_level", v.get("severity", ""))).upper() == "CRITICAL")
-    high_count = sum(1 for v in vulns if v and str(v.get("risk_level", v.get("severity", ""))).upper() == "HIGH")
-    medium_count = sum(1 for v in vulns if v and str(v.get("risk_level", v.get("severity", ""))).upper() == "MEDIUM")
-    low_count = sum(1 for v in vulns if v and str(v.get("risk_level", v.get("severity", ""))).upper() == "LOW")
-    
-    # Path to logo
-    logo_path = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "logo.png"))
-    
+    # --- 2. RECOMMENDATION GROUPING (Same Logic for Card Consistency) ---
+    findings_by_service = {}
+    for rec in recommendations:
+        service = rec.get("service", "General Infrastructure")
+        if service not in findings_by_service:
+            findings_by_service[service] = []
+        findings_by_service[service].append(rec)
+
+    grouped_findings = []
+    for service, service_recs in findings_by_service.items():
+        patterns = {}
+        for rec in service_recs:
+            exp = rec.get("explanation", "Finding identified during analysis.")
+            pattern_key = exp[:80].lower().strip()
+            if pattern_key not in patterns:
+                patterns[pattern_key] = {
+                    "display_title": f"{service} Vulnerabilities",
+                    "explanation": exp,
+                    "attacker_perspective": rec.get("attacker_perspective", "Potential for exploitation exists."),
+                    "remediation": rec.get("remediation", []),
+                    "severity": str(rec.get("severity", "LOW")).upper(),
+                    "cvss": rec.get("cvss_score", 0),
+                    "cve_ids": [],
+                    "instances": [],
+                    "impact": f"Unauthorized access or service disruption via {service} layer."
+                }
+            if rec.get("attacker_perspective") and len(rec.get("attacker_perspective")) < 120:
+                patterns[pattern_key]["impact"] = rec.get("attacker_perspective")
+            cve = rec.get("cve_id", "N/A")
+            if cve != "N/A" and cve not in patterns[pattern_key]["cve_ids"]:
+                patterns[pattern_key]["cve_ids"].append(cve)
+            inst = f"{rec.get('host', 'N/A')}:{rec.get('port', 'N/A')}"
+            if inst not in patterns[pattern_key]["instances"]:
+                patterns[pattern_key]["instances"].append(inst)
+        
+        for p in patterns.values():
+            if len(p["cve_ids"]) > 1: p["display_title"] = f"Multiple {service} Issues ({len(p['cve_ids'])} CVEs)"
+            elif p["cve_ids"]: p["display_title"] = f"{p['cve_ids'][0]}"
+            grouped_findings.append(p)
+
+    grouped_findings.sort(key=lambda x: ({"CRITICAL": 4, "HIGH": 3, "MEDIUM": 2, "LOW": 1}.get(x["severity"], 0)), reverse=True)
+
     html_template = """
     <!DOCTYPE html>
     <html lang="en">
     <head>
         <meta charset="UTF-8">
         <style>
-            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-            :root { --accent: #10B981; --accent-dark: #059669; --text-main: #1f2937; --text-muted: #6b7280; --border: #e5e7eb; --red: #ef4444; --orange: #f97316; --yellow: #facc15; --green: #10b981; --blue: #2563eb; }
-            @page { size: A4; margin: 20mm; @bottom-right { content: "Page " counter(page); font-family: 'Inter', sans-serif; font-size: 10px; color: #9ca3af; } @bottom-left { content: "ReconX Security Platform | Confidential Report"; font-family: 'Inter', sans-serif; font-size: 10px; color: #9ca3af; } }
-            body { font-family: 'Inter', sans-serif; color: var(--text-main); line-height: 1.6; margin: 0; padding: 0; background-color: #ffffff; font-size: 11pt; word-wrap: break-word; }
-            .header-panel { text-align: center; margin-bottom: 40px; padding-bottom: 30px; border-bottom: 2px solid var(--border); }
-            .header-logo { height: 60px; margin-bottom: 20px; }
-            .header-title { font-size: 24pt; font-weight: 700; color: #111827; margin: 0 0 5px 0; }
-            .header-subtitle { font-size: 12pt; color: var(--text-muted); text-transform: uppercase; font-weight: 500; letter-spacing: 1px; }
-            .info-label { font-size: 9pt; color: var(--text-muted); text-transform: uppercase; font-weight: 600; margin-bottom: 4px; }
-            .info-value { font-size: 11pt; font-weight: 600; color: #111827; }
-            h1.section-title { color: var(--accent); font-size: 16pt; font-weight: 700; border-bottom: 2px solid var(--accent); padding-bottom: 8px; margin-top: 32px; margin-bottom: 24px; text-transform: uppercase; page-break-after: avoid; line-height: 1.3; }
-            h3 { color: #374151; font-size: 13pt; margin-top: 24px; margin-bottom: 16px; font-weight: 600; page-break-after: avoid; }
-            p { margin-bottom: 16px; color: #4b5563; line-height: 1.6; }
-            .summary-cards { display: table; width: 100%; margin: 24px 0; table-layout: fixed; border-spacing: 16px 0; }
-            .card { display: table-cell; border: 1px solid var(--border); padding: 20px 16px; border-radius: 8px; text-align: center; }
-            .card .count { font-size: 28pt; font-weight: 700; color: #111827; line-height: 1; margin-bottom: 8px; }
-            .card .label { font-size: 9pt; color: var(--text-muted); font-weight: 600; text-transform: uppercase; }
-            .card-vuln .count { color: var(--orange); }
-            .card-critical .count { color: var(--red); }
-            .card-high .count { color: var(--orange); }
-            .severity-bar { height: 6px; width: 100%; border-radius: 3px; background: #e5e7eb; margin: 24px 0; display: flex; overflow: hidden; }
-            .sev-crit { background-color: var(--red); }
-            .sev-high { background-color: var(--orange); }
-            .sev-med { background-color: var(--yellow); }
-            .sev-low { background-color: var(--green); }
-            table { width: 100%; border-collapse: collapse; margin-top: 16px; margin-bottom: 32px; font-size: 10pt; }
-            th, td { border: 1px solid var(--border); padding: 12px 14px; text-align: left; }
-            th { background-color: #f9fafb; font-weight: 600; color: #374151; font-size: 9pt; text-transform: uppercase; padding: 14px 14px; }
-            tr:nth-child(even) { background-color: #f9fafb; }
-            .host-alive { color: var(--green); font-weight: 600; }
-            .badge { display: inline-block; padding: 4px 10px; border-radius: 6px; font-weight: 700; font-size: 8pt; text-transform: uppercase; }
-            .badge-tech { background-color: #f3f4f6; color: #374151; border: 1px solid #d1d5db; margin: 2px; }
-            .badge-critical { background-color: var(--red); color: white; }
-            .badge-high { background-color: var(--orange); color: white; }
-            .badge-medium { background-color: var(--yellow); color: #111827; }
-            .badge-low { background-color: var(--green); color: white; }
-            .cvss-bold { font-weight: 700; color: #111827; }
-            .attack-chain { display: table; width: 100%; margin: 32px 0; table-layout: fixed; text-align: center; }
-            .chain-step { display: table-cell; vertical-align: middle; }
-            .chain-box { background: #f0fdf4; border: 2px solid #86efac; border-radius: 8px; padding: 16px 12px; font-weight: 600; color: #166534; font-size: 10pt; }
-            .chain-arrow { display: table-cell; vertical-align: middle; color: var(--accent); font-weight: bold; font-size: 16pt; width: 40px; }
-            .cve-card { border: 1px solid var(--border); border-radius: 8px; margin-bottom: 32px; page-break-inside: avoid; }
-            .cve-card-CRITICAL { border-left: 4px solid var(--red); }
-            .cve-card-HIGH { border-left: 4px solid var(--orange); }
-            .cve-card-MEDIUM { border-left: 4px solid var(--yellow); }
-            .cve-card-LOW { border-left: 4px solid var(--green); }
-            .cve-header { background: #f9fafb; padding: 16px 20px; border-bottom: 1px solid var(--border); border-radius: 8px 8px 0 0; display: flex; justify-content: space-between; align-items: center; }
-            .cve-title { margin: 0; font-size: 14pt; font-weight: 700; display: inline-block; }
-            .cve-title-CRITICAL { color: var(--red); }
-            .cve-title-HIGH { color: var(--orange); }
-            .cve-meta-bar { padding: 12px 20px; border-bottom: 1px solid var(--border); font-size: 10pt; color: #4b5563; font-weight: 500; }
-            .cve-meta-item { display: inline-block; margin-right: 25px; }
-            .cve-meta-item strong { color: #111827; font-weight: 600; }
-            .cve-body { padding: 20px; }
-            .cve-section { margin-bottom: 24px; }
-            .cve-section-remediation { background-color: #f0fdf4; border: 1px solid #bbf7d0; padding: 16px; border-radius: 8px; }
-            .cve-section-remediation .cve-label { color: #166534; margin-bottom: 8px; }
-            .cve-label { font-size: 10pt; font-weight: 700; color: #111827; margin-bottom: 8px; text-transform: uppercase; }
-            .cve-refs a { color: var(--blue); text-decoration: underline; }
-            .page-break { page-break-before: always; }
+            body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #1e293b; background: #ffffff; margin: 0; padding: 0; line-height: 1.5; font-size: 10pt; }
+            .clearfix:after { content: ""; display: table; clear: both; }
+            .page-break { page-break-after: always; }
+            
+            /* Cover Page */
+            .cover { height: 950pt; background: #111827; color: white; text-align: center; padding-top: 150pt; box-sizing: border-box; border-left: 20pt solid #3b82f6; }
+            .cover h1 { font-size: 40pt; font-weight: 800; margin: 0; letter-spacing: -1pt; }
+            .cover p { font-size: 14pt; color: #3b82f6; text-transform: uppercase; letter-spacing: 4pt; font-weight: 600; margin-top: 15pt; }
+            .cover-meta { margin-top: 350pt; font-size: 11pt; color: #9ca3af; }
+            .cover-meta b { color: white; display: block; font-size: 13pt; margin-top: 5pt; margin-bottom: 20pt; }
+
+            /* Header Section */
+            .report-header { background: #111827; color: white; padding: 25pt 40pt; box-sizing: border-box; border-left: 10pt solid #3b82f6; }
+            .report-header h2 { margin: 0; font-size: 18pt; }
+            .report-header p { margin: 3pt 0 0 0; color: #3b82f6; font-size: 9pt; font-weight: 700; text-transform: uppercase; }
+
+            /* Dashboard */
+            .dashboard { padding: 30pt 40pt; background: #f9fafb; border-bottom: 1px solid #e5e7eb; }
+            .card-wrapper { width: 23%; float: left; margin-right: 2%; box-sizing: border-box; }
+            .card-wrapper:last-child { margin-right: 0; }
+            .metric-card { background: white; padding: 15pt 10pt; border-radius: 8pt; border: 1px solid #e5e7eb; text-align: center; }
+            .metric-card .val { font-size: 22pt; font-weight: 800; display: block; color: #111827; }
+            .metric-card .lbl { font-size: 7pt; color: #6b7280; text-transform: uppercase; font-weight: 700; margin-top: 4pt; display: block; }
+            .acc-red { border-top: 3pt solid #ef4444; }
+            .acc-blue { border-top: 3pt solid #3b82f6; }
+
+            /* Content Sections */
+            .container { padding: 40pt; }
+            .section-title { font-size: 18pt; font-weight: 800; color: #111827; margin-bottom: 20pt; border-bottom: 2pt solid #3b82f6; display: inline-block; padding-bottom: 4pt; }
+            
+            /* Tables */
+            table { width: 100%; border-collapse: collapse; margin-bottom: 20pt; font-size: 9pt; }
+            th { text-align: left; background: #f3f4f6; padding: 8pt 12pt; color: #4b5563; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid #e5e7eb; }
+            td { padding: 8pt 12pt; border-bottom: 1px solid #f3f4f6; vertical-align: top; }
+            
+            /* Badges */
+            .badge { padding: 2pt 6pt; border-radius: 4pt; font-size: 8pt; font-weight: 700; color: white; display: inline-block; }
+            .bg-red { background: #ef4444; }
+            .bg-orange { background: #f97316; }
+            .bg-yellow { background: #eab308; }
+            .bg-green { background: #10b981; }
+            .bg-blue { background: #3b82f6; }
+
+            /* Cards */
+            .glass-card { background: #ffffff; border: 1px solid #e5e7eb; border-radius: 10pt; padding: 15pt; margin-bottom: 20pt; page-break-inside: avoid; }
+            .card-title { font-size: 11pt; font-weight: 700; color: #111827; margin-bottom: 10pt; display: block; }
+            
+            /* Cluster Items */
+            .cluster-item { padding: 6pt 0; border-bottom: 1px dashed #f3f4f6; }
+            .cluster-item:last-child { border-bottom: 0; }
+            
+            /* Anomaly Cards */
+            .anomaly-grid { width: 32%; float: left; margin-right: 1.33%; box-sizing: border-box; }
+            .anomaly-grid:last-child { margin-right: 0; }
+
+            /* Attack Path Section */
+            .path-step { background: #f8fafc; border: 1px solid #e2e8f0; padding: 10pt 15pt; border-radius: 6pt; display: inline-block; font-weight: 700; font-size: 9pt; margin-right: 10pt; }
+            .path-arrow { color: #3b82f6; font-weight: bold; margin-right: 10pt; }
+
+            @page { margin: 0; }
         </style>
     </head>
     <body>
-        <div class="header-panel">
-            <h1 class="header-title">ReconX Security Assessment</h1>
-            <div class="header-subtitle"><br>Comprehensive Vulnerability Report</div>
-            <div style="width: 100%; display: table; margin-top: 30px;">
-                <div style="display: table-row;">
-                    <div style="display: table-cell; text-align: center;"><div class="info-label">User</div><div class="info-value">{{ username }}</div></div>
-                    <div style="display: table-cell; text-align: center;"><div class="info-label">Target Domain</div><div class="info-value">{{ domain }}</div></div>
-                    <div style="display: table-cell; text-align: center;"><div class="info-label">Scan Date</div><div class="info-value">{{ date }}</div></div>
-                    <div style="display: table-cell; text-align: center;"><div class="info-label">Scan ID</div><div class="info-value">{{ scan_id[:8] if scan_id else 'N/A' }}</div></div>
-                </div>
+        <div class="cover">
+            <h1>THREAT INTELLIGENCE</h1>
+            <p>Integrated Vulnerability Audit</p>
+            <div class="cover-meta">
+                TARGET DOMAIN<b>{{ domain }}</b>
+                REPORT GENERATED<b>{{ date }}</b>
+                AUDIT IDENTIFIER<b>RX-{{ scan_id[:12].upper() }}</b>
             </div>
         </div>
 
-        <h1 class="section-title">Executive Summary</h1>
-        <p>This document presents the findings from an automated ReconX security assessment of <strong>{{ domain }}</strong>. The objective of this scan is to identify exposed assets, map the external attack surface, and uncover potential vulnerabilities that could be exploited by malicious actors.</p>
-        <div class="summary-cards">
-            <div class="card"><div class="count">{{ subdomains|length }}</div><div class="label">Subdomains</div></div>
-            <div class="card card-vuln"><div class="count">{{ vulns|length }}</div><div class="label">Vulnerabilities</div></div>
-            <div class="card card-critical"><div class="count">{{ critical_count }}</div><div class="label">Critical</div></div>
-            <div class="card card-high"><div class="count">{{ high_count }}</div><div class="label">High</div></div>
-        </div>
-        {% set total = critical_count + high_count + medium_count + low_count %}
-        {% if total > 0 %}
-        <div class="severity-bar">
-            <div class="sev-crit" style="width: {{ (critical_count / total * 100)|round }}%;"></div>
-            <div class="sev-high" style="width: {{ (high_count / total * 100)|round }}%;"></div>
-            <div class="sev-med" style="width: {{ (medium_count / total * 100)|round }}%;"></div>
-            <div class="sev-low" style="width: {{ (low_count / total * 100)|round }}%;"></div>
-        </div>
-        {% endif %}
-
-        <h1 class="section-title">Reconnaissance Results</h1>
-        <h3>Discovered Subdomains</h3>
-        <table>
-            <thead><tr><th>Subdomain</th><th>IP Address</th><th>Status</th></tr></thead>
-            <tbody>
-                {% for sub in (subdomains or []) %}
-                {% if sub is not none %}
-                <tr>
-                    <td>{{ sub.subdomain if sub is mapping else sub }}</td>
-                    <td>{{ sub.ip if sub is mapping else "N/A" }}</td>
-                    <td>
-                        {% set st = (sub.status if sub is mapping else "Active")|lower %}
-                        {% if 'active' in st or 'alive' in st or '200' in st %}
-                            <span class="host-alive">✅ {{ sub.status if sub is mapping else "Active" }}</span>
-                        {% else %}
-                            <span style="color:var(--red);">❌ {{ sub.status if sub is mapping else "Dead" }}</span>
-                        {% endif %}
-                    </td>
-                </tr>
-                {% endif %}{% endfor %}
-            </tbody>
-        </table>
-
-        <h3>Open Ports & Services</h3>
-        <table>
-            <thead><tr><th>Port</th><th>Service</th><th>Version</th><th>Source Host</th></tr></thead>
-            <tbody>
-                {% for port in (ports or []) %}
-                {% if port is not none %}
-                <tr><td><strong>{{ port.port }}</strong></td><td>{{ port.service }}</td><td>{{ port.version }}</td><td>{{ port.host }}</td></tr>
-                {% endif %}{% endfor %}
-            </tbody>
-        </table>
-
-        <h3>Technology Fingerprinting</h3>
-        <table>
-            <thead><tr><th>Target URL</th><th>Detected Technologies</th></tr></thead>
-            <tbody>
-                {% for tech_batch in (technologies or []) %}
-                {% if tech_batch is not none and tech_batch.get('technologies') %}
-                <tr>
-                    <td style="width: 30%; word-break: break-all;">{{ tech_batch.get('url') or 'N/A' }}</td>
-                    <td>
-                        {% for item in tech_batch.get('technologies') %}
-                            {% if item is not none %}
-                            <span class="badge badge-tech">{{ item.get('technology') or 'Unknown' }} {% if item.get('version') %}({{ item.get('version') }}){% endif %}</span>
-                            {% endif %}
-                        {% endfor %}
-                    </td>
-                </tr>
-                {% endif %}{% endfor %}
-            </tbody>
-        </table>
-
-        <div class="page-break"></div>
-
-        <h1 class="section-title">Attack Chain Framework</h1>
-        <p>To better interpret how an attacker might leverage the vulnerabilities identified in this report, the following conceptual attack chain illustrates the typical progression from external reconnaissance to exploitation and data compromise.</p>
-        <div class="attack-chain">
-            <div class="chain-step"><div class="chain-box">1. Reconnaissance<br><span style="font-weight: normal; font-size: 8pt; color: #166534;">Mapping attack surface</span></div></div>
-            <div class="chain-arrow">→</div>
-            <div class="chain-step"><div class="chain-box">2. Service Discovery<br><span style="font-weight: normal; font-size: 8pt; color: #166534;">Identifying vulnerable layers</span></div></div>
-            <div class="chain-arrow">→</div>
-            <div class="chain-step"><div class="chain-box">3. Exploitation<br><span style="font-weight: normal; font-size: 8pt; color: #166534;">Weaponizing identified CVEs</span></div></div>
-            <div class="chain-arrow">→</div>
-            <div class="chain-step"><div class="chain-box">4. Data Exposure<br><span style="font-weight: normal; font-size: 8pt; color: #166534;">Accessing sensitive systems</span></div></div>
+        <div class="report-header">
+            <h2>Executive Overview</h2>
+            <p>Unified Assessment Dashboard</p>
         </div>
 
-        {% if strategies %}
-        <div class="page-break"></div>
-        <h1 class="section-title">Exploitation Strategy & Attack Paths</h1>
-        <p>The following predicted attack paths map discovered vulnerabilities to their logical exploitation chains based on CWE mechanics and public exploit availability.</p>
-        
-        {% for strat in strategies %}
-        {% set sev = (strat.get('severity') or "UNKNOWN")|upper %}
-        <div class="cve-card cve-card-{{ sev }}">
-            <div class="cve-header">
-                <h3 class="cve-title cve-title-{{ sev }}">{{ strat.get('cve_id') }}</h3>
-                <span class="badge badge-{{ sev|lower }}">{{ strat.get('evidence_status', 'Unknown')|upper }}</span>
-            </div>
-            <div class="cve-meta-bar">
-                <div class="cve-meta-item">Service: <strong>{{ strat.get('service', 'N/A') }}</strong></div>
-                <div class="cve-meta-item">CWE: <strong>{{ strat.get('cwe_id', 'N/A') }}</strong></div>
-            </div>
-            <div class="cve-body">
-                <div class="cve-section">
-                    <p style="margin:0; font-size:10pt; font-style: italic;">"{{ strat.get('explanation', '') }}"</p>
-                    <p style="margin-top:8px; font-size:10pt;"><strong>MITRE TTP:</strong> <span style="font-family: monospace;">{{ strat.get('mitre_technique', 'N/A') }}</span></p>
-                </div>
-                
-                {% if strat.get('attack_chain') %}
-                <div class="cve-section cve-section-remediation" style="background-color: #f9fafb; border-color: #e5e7eb;">
-                    <div class="cve-label" style="color: #4b5563;">🎯 Predicted Attack Path</div>
-                    <div style="font-size:10pt; font-weight: 600; color: #374151; margin-top: 5px;">
-                        {% for step in strat.get('attack_chain') %}
-                            <span style="display:inline-block; padding: 4px 8px; background: white; border: 1px solid #d1d5db; border-radius: 4px;">{{ step }}</span>
-                            {% if not loop.last %}<span style="color: #9ca3af; margin: 0 4px;">→</span>{% endif %}
-                        {% endfor %}
+        <div class="dashboard clearfix">
+            <div class="card-wrapper"><div class="metric-card"><span class="val">{{ subdomains|length }}</span><span class="lbl">Subdomains</span></div></div>
+            <div class="card-wrapper"><div class="metric-card"><span class="val">{{ total_vulns }}</span><span class="lbl">Verifiable Vulns</span></div></div>
+            <div class="card-wrapper"><div class="metric-card acc-red"><span class="val">{{ critical_count }}</span><span class="lbl">Critical Risks</span></div></div>
+            <div class="card-wrapper"><div class="metric-card acc-blue"><span class="val">{{ risk_score }}%</span><span class="lbl">Global Risk Score</span></div></div>
+        </div>
+
+        <div class="container" style="padding-bottom: 0;">
+            <h3 class="section-title">Network Topology Clusters</h3>
+            <p style="margin-bottom: 20pt; color: #6b7280;">Logical grouping of assets based on shared infrastructure and service patterns.</p>
+            
+            <div class="clearfix">
+                {% for c in clusters %}
+                <div style="width: 48%; float: left; margin-right: 2%; margin-bottom: 20pt;">
+                    <div class="glass-card" style="margin-bottom: 0;">
+                        <span class="card-title">Cluster {{ c.cluster_id }} ({{ c.size }} Nodes)</span>
+                        <div style="max-height: 200pt; overflow: hidden;">
+                            {% for sub in c.examples[:10] %}
+                            <div class="cluster-item">
+                                <span style="font-weight: 600;">{{ sub }}</span>
+                            </div>
+                            {% endfor %}
+                        </div>
                     </div>
                 </div>
-                {% endif %}
-                
-                {% if strat.get('exploit_db_reference') %}
-                <div class="cve-section cve-refs">
-                    <div class="cve-label">🔗 Exploit-DB Intelligence</div>
-                    <ul style="margin:5px 0 0 0; padding-left:20px; font-size:9pt;">
-                        {% for ref in strat.get('exploit_db_reference') %}
-                        <li><a href="{{ ref.get('url', '#') }}" target="_blank">{{ ref.get('title', 'Reference') }}</a></li>
-                        {% endfor %}
-                    </ul>
-                </div>
-                {% endif %}
+                {% if loop.index is divisibleby 2 %}<div class="clearfix"></div>{% endif %}
+                {% endfor %}
             </div>
         </div>
-        {% endfor %}
-        {% endif %}
-
-        <h1 class="section-title">Vulnerability Summary</h1>
-        <table>
-            <thead><tr><th>CVE ID</th><th>Severity</th><th>CVSS</th><th>Service / Target</th></tr></thead>
-            <tbody>
-                {% for vuln in (vulns or []) %}
-                {% if vuln is not none %}
-                    {% set sev = (vuln.get('risk_level') or vuln.get('severity') or "UNKNOWN")|upper %}
-                    <tr>
-                        <td><strong>{{ vuln.get('cve_id') }}</strong></td>
-                        <td><span class="badge badge-{{ sev|lower }}">{{ sev }}</span></td>
-                        <td class="cvss-bold">{{ vuln.get('cvss_score') or vuln.get('cvss') or 'N/A' }}</td>
-                        <td>{{ vuln.get('service_name') or vuln.get('service') or 'N/A' }} {% if vuln.get('port_number') %}(Port: {{ vuln.get('port_number') }}){% endif %}</td>
-                    </tr>
-                {% endif %}{% endfor %}
-            </tbody>
-        </table>
 
         <div class="page-break"></div>
-        <h1 class="section-title">Vulnerability Details & Recommendations</h1>
-        
-        {% for rec in (recommendations or []) %}
-        {% if rec is not none %}
-        {% set sev = (rec.get('severity') or "UNKNOWN")|upper %}
-        {% set conf = rec.get('confidence_level', 'MEDIUM') %}
-        <div class="cve-card cve-card-{{ sev }}">
-            <div class="cve-header">
-                <div style="display: flex; align-items: center; gap: 10px;">
-                    <h3 class="cve-title cve-title-{{ sev }}">{{ rec.get('cve_id', 'Unknown Vulnerability') }}</h3>
-                    <span style="font-size: 8pt; font-weight: 700; padding: 2px 6px; border: 1px solid #d1d5db; border-radius: 4px; color: #6b7280;">{{ conf }} CONFIDENCE</span>
-                </div>
-                <span class="badge badge-{{ sev|lower }}">{{ sev }}</span>
-            </div>
-            <div class="cve-meta-bar">
-                <div class="cve-meta-item">Service: <strong>{{ rec.get('service', 'N/A') }}</strong></div>
-                <div class="cve-meta-item">Port: <strong>{{ rec.get('port', 'N/A') }}</strong></div>
-                <div class="cve-meta-item">CVSS: <strong>{{ rec.get('cvss_score') or rec.get('cvss') or "N/A" }}</strong></div>
-            </div>
-            <div class="cve-body">
-                {% if rec.get('justification') %}
-                <div class="cve-section">
-                    <div class="cve-label" style="font-size: 8pt; color: #6b7280;">Confidence Justification</div>
-                    <p style="margin:0; font-size:10pt; color: #374151;">{{ rec.get('justification') }}</p>
-                </div>
-                {% endif %}
-                
-                {% if rec.get('explanation') %}
-                <div class="cve-section">
-                    <div class="cve-label">Analyst Explanation</div>
-                    <p style="margin:0; font-size:10pt;">{{ rec.get('explanation') }}</p>
-                </div>
-                {% endif %}
 
-                {% if rec.get('attacker_perspective') %}
-                <div class="cve-section">
-                    <div class="cve-label" style="color: #b91c1c;">Attacker Perspective</div>
-                    <p style="margin:0; font-size:10pt; color: #b91c1c;">{{ rec.get('attacker_perspective') }}</p>
-                </div>
-                {% endif %}
-
-                {% if rec.get('remediation') %}
-                <div class="cve-section cve-section-remediation">
-                    <div class="cve-label">🟢 Actionable Remediation</div>
-                    <ul style="margin:5px 0 0 0; padding-left:20px; font-size:10pt; color: #14532d; list-style-type: none;">
-                        {% for item in (rec.get('remediation') or []) %}
-                            {% set parts = item.split(': ') %}
-                            <li style="margin-bottom: 4px;">
-                                {% if parts|length > 1 %}
-                                    <strong>{{ parts[0] }}:</strong> {{ parts[1:]|join(': ') }}
+        <div class="container" style="padding-top: 20pt; padding-bottom: 0;">
+            <h3 class="section-title">Technology Fingerprinting</h3>
+            {% for t in tech_fingerprints %}
+            <div class="glass-card">
+                <span class="card-title" style="color: #3b82f6;">{{ t.url }}</span>
+                <table>
+                    <thead>
+                        <tr><th>Technology</th><th>Version</th><th>Vulnerabilities</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for tech in t.technologies %}
+                        <tr>
+                            <td><b>{{ tech.technology }}</b></td>
+                            <td>{{ tech.version or 'Unknown' }}</td>
+                            <td>
+                                {% if tech.cves %}
+                                    {% for cve in tech.cves[:3] %}
+                                    <div style="margin-bottom: 2pt;">
+                                        <span class="badge bg-red" style="font-size: 7pt;">{{ cve.cve }}</span>
+                                        <span style="font-size: 7pt; color: #6b7280;">(CVSS {{ cve.cvss }})</span>
+                                    </div>
+                                    {% endfor %}
                                 {% else %}
-                                    {{ item }}
+                                    <span style="color: #10b981; font-weight: 700;">SECURE</span>
                                 {% endif %}
-                            </li>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="page-break"></div>
+
+        <div class="container" style="padding-top: 20pt; padding-bottom: 0;">
+            <h3 class="section-title">Traffic Anomaly Analysis</h3>
+            <div class="clearfix">
+                {% for a in anomalies %}
+                <div class="anomaly-grid">
+                    <div class="glass-card" style="border-left: 4pt solid {% if a.model4_result.status == 'suspicious' %}#ef4444{% else %}#10b981{% endif %};">
+                        <span class="card-title" style="font-size: 9pt;">{{ a.subdomain }}</span>
+                        <div style="font-size: 8pt; color: #6b7280;">
+                            Status: <b style="color: {% if a.model4_result.status == 'suspicious' %}#ef4444{% else %}#10b981{% endif %};">{{ a.model4_result.status|upper }}</b><br>
+                            Unique IPs: <b>{{ a.model4_result.traffic_data.unique_ips }}</b><br>
+                            SYN Count: <b>{{ a.model4_result.traffic_data.tcp_syn_count }}</b>
+                        </div>
+                    </div>
+                </div>
+                {% if loop.index is divisibleby 3 %}<div class="clearfix"></div>{% endif %}
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="container" style="padding-top: 20pt;">
+            <h3 class="section-title">Exploitation Intelligence</h3>
+            {% for strat in model5_strategies %}
+            <div class="glass-card">
+                <span class="badge bg-red" style="float: right;">{{ strat.evidence_status }}</span>
+                <span class="card-title">{{ strat.cve_id }}</span>
+                <p style="font-size: 9pt; font-style: italic; color: #4b5563; margin-bottom: 10pt;">"{{ strat.explanation }}"</p>
+                
+                <h4 style="font-size: 8pt; margin-bottom: 5pt; color: #6b7280;">PREDICTED ATTACK PATH</h4>
+                <div class="clearfix" style="margin-bottom: 10pt;">
+                    {% for step in strat.attack_chain %}
+                    <span class="path-step">{{ step }}</span>
+                    {% if not loop.last %}<span class="path-arrow">→</span>{% endif %}
+                    {% endfor %}
+                </div>
+
+                {% if strat.exploit_db_reference %}
+                <h4 style="font-size: 8pt; margin-bottom: 5pt; color: #6b7280;">EXPLOIT-DB INTELLIGENCE</h4>
+                <ul style="font-size: 8pt; color: #3b82f6; padding-left: 15pt;">
+                    {% for ref in strat.exploit_db_reference %}
+                    <li><a href="{{ ref.url }}" style="color: #3b82f6;">{{ ref.title }}</a></li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="page-break"></div>
+
+        <div class="container" style="padding-top: 20pt;">
+            <h3 class="section-title">Verifiable Vulnerability Index</h3>
+            <table>
+                <thead>
+                    <tr><th>CVE ID</th><th>Service/URL</th><th>Port</th><th>CVSS</th><th>Risk</th></tr>
+                </thead>
+                <tbody>
+                    {% for v in vulns_m6 %}
+                    <tr>
+                        <td style="font-weight: 700; color: #3b82f6;">{{ v.cve_id or 'N/A' }}</td>
+                        <td>{{ v.service or 'System' }}</td>
+                        <td>{{ v.port or 'N/A' }}</td>
+                        <td><b>{{ v.cvss or 'N/A' }}</b></td>
+                        <td><span class="badge {% if v.risk_level == 'Critical' %}bg-red{% elif v.risk_level == 'High' %}bg-orange{% elif v.risk_level == 'Medium' %}bg-yellow{% else %}bg-green{% endif %}">{{ v.risk_level }}</span></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="container" style="padding-top: 0;">
+            <h3 class="section-title">Actionable Remediation Roadmap</h3>
+            {% for find in grouped_findings %}
+            <div class="glass-card" style="border-left: 4pt solid {% if find.severity == 'CRITICAL' %}#ef4444{% elif find.severity == 'HIGH' %}#f97316{% else %}#eab308{% endif %};">
+                <span class="card-title">{{ find.display_title }}</span>
+                <p style="font-size: 9pt; margin-bottom: 10pt;">{{ find.explanation[:200] }}...</p>
+                <div style="background: #f0fdf4; border: 1px solid #bbf7d0; padding: 10pt; border-radius: 6pt;">
+                    <h5 style="margin: 0 0 5pt 0; color: #166534; font-size: 8pt;">REMEDIATION PLAN</h5>
+                    <ul style="font-size: 8pt; color: #14532d; margin: 0; padding-left: 15pt;">
+                        {% for step in find.remediation %}
+                        <li>{{ step }}</li>
                         {% endfor %}
                     </ul>
                 </div>
-                {% endif %}
-
-                {% if rec.get('references') %}
-                <div class="cve-section cve-refs">
-                    <div class="cve-label">🔗 References</div>
-                    <ul style="margin:5px 0 0 0; padding-left:20px; font-size:9pt;">
-                        {% for ref in (rec.get('references') or []) %}<li><a href="{{ ref }}" target="_blank">{{ ref }}</a></li>{% endfor %}
-                    </ul>
-                </div>
-                {% endif %}
             </div>
+            {% endfor %}
         </div>
-        {% endif %}{% endfor %}
     </body>
     </html>
     """
     
     template = Template(html_template)
     return template.render(
-        logo_path=logo_path,
         username=username,
         domain=domain,
         date=datetime.now().strftime("%B %d, %Y"),
         scan_id=scan_id,
         subdomains=subdomains,
         ports=ports,
-        vulns=vulns,
-        technologies=technologies,
-        recommendations=recommendations,
-        strategies=strategies,
+        total_vulns=total_vulns,
         critical_count=critical_count,
-        high_count=high_count,
-        medium_count=medium_count,
-        low_count=low_count
+        risk_score=risk_score,
+        grouped_findings=grouped_findings,
+        clusters=clusters,
+        tech_fingerprints=tech_fingerprints,
+        anomalies=anomalies,
+        model5=model5,
+        model5_strategies=model5_strategies,
+        vulns_m6=vulns_m6
     )
 
 def generate_pdf_report(html_file_path):
@@ -396,20 +393,10 @@ def generate_pdf_report(html_file_path):
     output_pdf = html_file_path.replace(".html", ".pdf")
     options = {
         'page-size': 'A4',
-        'margin-top': '0mm',
-        'margin-right': '0mm',
-        'margin-bottom': '0mm',
-        'margin-left': '0mm',
-        'encoding': "UTF-8",
-        'no-outline': None,
-        'enable-local-file-access': None
+        'margin-top': '0mm', 'margin-right': '0mm', 'margin-bottom': '0mm', 'margin-left': '0mm',
+        'encoding': "UTF-8", 'no-outline': None, 'enable-local-file-access': None, 'quiet': None
     }
-    
-    if not config:
-        print("[!] ERROR: wkhtmltopdf executable not found. PDF report generation failed.")
-        print("[!] Please install wkhtmltopdf and ensure it is in your PATH or at C:\\Program Files\\wkhtmltopdf\\bin\\wkhtmltopdf.exe")
-        return None
-        
+    if not config: return None
     try:
         pdfkit.from_file(html_file_path, output_pdf, configuration=config, options=options)
         return output_pdf
