@@ -21,6 +21,7 @@ from utils.http_collector import collect_http_features
 from utils.traffic_collector import capture_traffic
 from utils.domain_validator import normalize_domains
 from utils.audit_logger import log_audit_event
+from utils.json_utils import mongo_to_json
 from utils.ssrf_protection import is_safe_target
 from utils.logger import get_logger
 from utils.extensions import limiter
@@ -450,11 +451,11 @@ def scan_domain():
             },
         )
 
-        return jsonify({
+        return jsonify(mongo_to_json({
             "message": "Scan complete", 
             "report_id": report_id,
             "report": report["result"]
-        }), 200
+        })), 200
 
     except Exception as e:
         import traceback

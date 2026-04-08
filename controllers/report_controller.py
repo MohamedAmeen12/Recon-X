@@ -10,6 +10,7 @@ from bson.objectid import ObjectId
 from utils.audit_logger import log_audit_event
 import config.database as db
 from utils.logger import get_logger
+from utils.json_utils import mongo_to_json
 
 logger = get_logger(__name__)
 
@@ -151,13 +152,13 @@ def get_technologies():
             {"_id": 0}
         ).sort("cvss_score", -1))
         
-        return jsonify({
+        return jsonify(mongo_to_json({
             "domain": domain,
             "technologies": technologies,
             "vulnerabilities": vulnerabilities,
             "total_technologies": len(technologies),
             "total_vulnerabilities": len(vulnerabilities)
-        }), 200
+        })), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -219,7 +220,7 @@ def get_report():
         details={"report_id": record["_id"]},
     )
 
-    return jsonify(record)
+    return jsonify(mongo_to_json(record))
 
 
 @report_bp.route("/verify_headers", methods=["GET"])
@@ -338,7 +339,7 @@ def generate_recommendations():
             details={"report_id": report_id_str, "vuln_count": len(vulnerabilities_for_model7)},
         )
 
-        return jsonify({"recommendations": recommendations})
+        return jsonify(mongo_to_json({"recommendations": recommendations}))
 
     except Exception as e:
         print(f"[Model 7 Endpoint] Error: {e}")

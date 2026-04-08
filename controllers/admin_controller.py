@@ -14,6 +14,7 @@ from utils.domain_validator import normalize_domains
 from utils.audit_logger import log_audit_event, verify_hmac
 
 from middlewares.admin_middleware import admin_required
+from utils.json_utils import mongo_to_json
 
 admin_bp = Blueprint(
     'admin',
@@ -34,7 +35,7 @@ def get_users():
             "created_at": str(u.get("created_at", "")),
             "role": u.get("role", "user"),
         })
-    return jsonify(users)
+    return jsonify(mongo_to_json(users))
 
 
 @admin_bp.route("/add_user", methods=["POST"])
@@ -104,7 +105,7 @@ def get_pending_users():
             "created_at": str(u.get("created_at", "")),
         })
 
-    return jsonify({"users": pending_users}), 200
+    return jsonify(mongo_to_json({"users": pending_users})), 200
 
 
 @admin_bp.route("/approve_user", methods=["POST"])
@@ -345,13 +346,13 @@ def get_audit_logs():
             "hmac_hash": log.get("hmac_hash", ""),
         })
 
-    return jsonify({
+    return jsonify(mongo_to_json({
         "logs": logs,
         "total": total,
         "page": page,
         "per_page": per_page,
         "total_pages": max(1, -(-total // per_page)),  # ceil division
-    })
+    }))
 
 
 @admin_bp.route("/verify_audit_log/<log_id>", methods=["GET"])
