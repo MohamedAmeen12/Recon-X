@@ -73,7 +73,7 @@ def lookup_cve(tech_name, version=""):
         future = executor.submit(client.lookup_technology_vulnerabilities, tech_name, version)
         
         try:
-            df = future.result(timeout=5)
+            df = future.result(timeout=25)  # NVD API can be slow; 25 s gives it enough time
             if df is not None and not df.empty:
                 for _, row in df.head(10).iterrows():
                     cves.append({
@@ -84,9 +84,9 @@ def lookup_cve(tech_name, version=""):
                         "published_date": row["published_date"]
                     })
         except FutureTimeoutError:
-            pass # Timeout silent fail
-        except Exception:
-            pass # API silent fail
+            logger.warning(f"[Model 3] NVD lookup timed out for {tech_name} {version} — CVEs may be incomplete")
+        except Exception as _e:
+            logger.warning(f"[Model 3] NVD API error for {tech_name} {version}: {_e}")
             
     except Exception as e:
         # Fallback to empty context if NVD tool fails drastically
@@ -188,10 +188,14 @@ def run_technology_fingerprinting(urls_data):
                 "technology": tech_name,
                 "version": version,
                 "category": tech.get("category", "Unknown"),
-                "cves": cves if vuln_status["status"] == "vulnerable" else [], # Attach only if vulnerable
+                # Always attach CVEs — the ML status is advisory only.
+                # Stripping CVEs here would starve Models 5 & 6 of data.
+                "cves": cves,
                 "vulnerability_status": vuln_status["status"],
                 "confidence": vuln_status["confidence"],
                 "max_cvss": vuln_status.get("max_cvss", 0.0),
+                "source": tech.get("source", ""),
+                "similarity_score": None,
                 "metadata": {
                     "port": tech.get("port"),
                     "raw_data": tech.get("raw_data", {})

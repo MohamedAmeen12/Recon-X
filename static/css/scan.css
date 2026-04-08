@@ -188,3 +188,181 @@ body {
 
   z-index: 2;
 }
+
+/* ============================================================
+   SCAN PROGRESS BAR
+   ============================================================ */
+.scan-progress-wrapper {
+  width: 100%;
+  max-width: 28rem;          /* matches the form max-w-md */
+  margin: 1.5rem auto 0;
+  padding: 1.25rem 1.5rem;
+  border-radius: 14px;
+
+  /* Light mode */
+  background: #f0fdf4;
+  border: 1px solid #a7f3d0;
+
+  /* Slide-in entrance */
+  animation: progressSlideIn 0.35s ease-out both;
+}
+
+/* Dark mode */
+.dark .scan-progress-wrapper {
+  background: rgba(16, 185, 129, 0.07);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  box-shadow: 0 0 24px rgba(16, 185, 129, 0.08);
+}
+
+@keyframes progressSlideIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+
+/* ── Header row ─────────────────────────────────────────── */
+.scan-progress-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.scan-progress-title {
+  flex: 1;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: #065f46;
+}
+.dark .scan-progress-title { color: #6ee7b7; }
+
+.scan-progress-pct {
+  font-size: 0.85rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #10b981;
+  min-width: 3ch;
+  text-align: right;
+}
+
+/* ── Pulsing active dot ─────────────────────────────────── */
+.scan-progress-pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  animation: scanPulse 1.4s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+@keyframes scanPulse {
+  0%   { box-shadow: 0 0 0 0   rgba(16, 185, 129, 0.7); }
+  70%  { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0);   }
+  100% { box-shadow: 0 0 0 0   rgba(16, 185, 129, 0);   }
+}
+
+/* ── Track & bar ────────────────────────────────────────── */
+.scan-progress-track {
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  background: #d1fae5;
+  overflow: hidden;
+  position: relative;
+}
+.dark .scan-progress-track { background: rgba(255,255,255,0.06); }
+
+.scan-progress-bar {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #10b981, #34d399, #6ee7b7);
+  background-size: 200% 100%;
+  transition: width 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  position: relative;
+
+  /* Shimmer sweep */
+  animation: barShimmer 1.8s linear infinite;
+}
+
+@keyframes barShimmer {
+  0%   { background-position: 200% center; }
+  100% { background-position: -200% center; }
+}
+
+/* Glow tip */
+.scan-progress-bar::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #34d399;
+  box-shadow: 0 0 8px 3px rgba(52, 211, 153, 0.7);
+}
+
+/* ── Stage text ─────────────────────────────────────────── */
+.scan-progress-stage {
+  margin: 0.6rem 0 0;
+  font-size: 0.72rem;
+  color: #059669;
+  letter-spacing: 0.01em;
+  transition: opacity 0.3s ease;
+  min-height: 1em;
+}
+.dark .scan-progress-stage { color: #6ee7b7; }
+
+/* ============================================================
+   RESULT MESSAGE PILLS
+   ============================================================ */
+.scan-msg {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  max-width: 28rem;
+  margin: 0.75rem auto 0;
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  animation: progressSlideIn 0.3s ease-out both;
+}
+
+.scan-msg--success {
+  background: #ecfdf5;
+  border: 1px solid #6ee7b7;
+  color: #065f46;
+}
+.dark .scan-msg--success {
+  background: rgba(16, 185, 129, 0.1);
+  border-color: rgba(16, 185, 129, 0.3);
+  color: #6ee7b7;
+}
+
+.scan-msg--error {
+  background: #fff1f2;
+  border: 1px solid #fca5a5;
+  color: #991b1b;
+}
+.dark .scan-msg--error {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: #fca5a5;
+}
+
+/* ============================================================
+   BUTTON SPINNER
+   ============================================================ */
+@keyframes spinRotate {
+  from { transform: rotate(0deg);   }
+  to   { transform: rotate(360deg); }
+}
+
+.spin-icon {
+  display: inline-block;
+  animation: spinRotate 0.8s linear infinite;
+}
