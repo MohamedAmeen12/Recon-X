@@ -39,99 +39,110 @@ report_bp = Blueprint('report', __name__)
 
 def enrich_report_data(record):
     """
-    Shared logic to enrich a report record with technology fingerprints, 
-    Model 5 (strategies), and Model 6 (scored vulnerabilities).
+    Enrich a report record with data from supporting collections.
+    IMPORTANT: This function is called on every report page load — keep it FAST.
+    Never run Model 5 (Exploit-DB calls) or Model 6 (XGBoost inference) here;
+    those are computed once during the scan and stored in the report document.
     """
     domain = record.get("domain")
     result = record.setdefault("result", {})
 
-    # 1. Technology Fingerprint Fallback
+    # ── 0. Hydrate raw_docs from subdomains_collection if missing ────────────
+    if not result.get("raw_docs"):
+        try:
+            raw_docs_db = list(db.subdomains_collection.find(
+                {"domain": domain}, {"_id": 0}
+            ).sort("scanned_at", -1).limit(200))
+            if raw_docs_db:
+                result["raw_docs"] = raw_docs_db
+                result.setdefault("total_candidates", len(raw_docs_db))
+                result.setdefault("resolved",
+                    sum(1 for s in raw_docs_db if s.get("ip") and s["ip"] != "Unresolved"))
+                result.setdefault("live_http",
+                    sum(1 for s in raw_docs_db if s.get("live_http")))
+        except Exception as e:
+            print(f"[Enrich] raw_docs hydration error: {e}")
+
+    # ── 1. Hydrate technology_fingerprints from technologies_collection ───────
     if not result.get("technology_fingerprints"):
         try:
-            technologies = list(db.technologies_collection.find({"domain": domain}, {"_id": 0}).sort("scanned_at", -1))
-            vulnerabilities = list(db.vulnerabilities_collection.find({"domain": domain}, {"_id": 0}).sort("cvss_score", -1))
-            
+            technologies = list(db.technologies_collection.find(
+                {"domain": domain}, {"_id": 0}
+            ).sort("scanned_at", -1))
+
             tech_by_url = {}
             for tech in technologies:
-                url = tech.get("url", f"http://{tech.get('subdomain', '')}")
+                url = tech.get("url") or f"http://{tech.get('subdomain', '')}"
                 tech_by_url.setdefault(url, {"url": url, "technologies": []})
-                
-                if not any(t["technology"] == tech.get("technology") and t["version"] == tech.get("version") for t in tech_by_url[url]["technologies"]):
-                    tech_cves = [
-                        {
-                            "cve": v.get("cve_id"),
-                            "cvss": v.get("cvss_score"),
-                            "severity": v.get("severity", "UNKNOWN")
-                        }
-                        for v in vulnerabilities
-                        if v.get("subdomain") == tech.get("subdomain") and
-                           v.get("technology") == tech.get("technology") and
-                           v.get("version") == tech.get("version")
-                    ]
-                    tech_by_url[url]["technologies"].append({
-                        "technology": tech.get("technology"),
-                        "version": tech.get("version"),
-                        "category": tech.get("category", "Unknown"),
-                        "cves": tech_cves
-                    })
+
+                # Deduplicate
+                already = any(
+                    t["technology"] == tech.get("technology") and
+                    t["version"] == tech.get("version")
+                    for t in tech_by_url[url]["technologies"]
+                )
+                if already:
+                    continue
+
+                # Use CVEs stored directly in the tech doc (new schema from model3 fix).
+                tech_cves = tech.get("cves") or []
+
+                # Legacy fallback: synthesise a CVE stub from max_cvss so the
+                # vuln table has something to show for old reports.
+                if not tech_cves and tech.get("max_cvss", 0) > 0:
+                    cvss_val = float(tech["max_cvss"])
+                    severity = (
+                        "CRITICAL" if cvss_val >= 9 else
+                        "HIGH"     if cvss_val >= 7 else
+                        "MEDIUM"   if cvss_val >= 4 else "LOW"
+                    )
+                    tech_cves = [{
+                        "cve": "CVE-PENDING",
+                        "cvss": cvss_val,
+                        "severity": severity,
+                        "description": (
+                            f"Known vulnerability in {tech.get('technology', '')} "
+                            f"{tech.get('version', '')} (max CVSS {cvss_val})"
+                        )
+                    }]
+
+                tech_by_url[url]["technologies"].append({
+                    "technology":           tech.get("technology"),
+                    "version":              tech.get("version"),
+                    "category":             tech.get("category", "Unknown"),
+                    "cves":                 tech_cves,
+                    "vulnerability_status": tech.get("vulnerability_status", "unknown"),
+                    "confidence":           tech.get("confidence", 0.0),
+                    "max_cvss":             tech.get("max_cvss", 0.0),
+                    "source":               tech.get("source", ""),
+                })
+
             result["technology_fingerprints"] = list(tech_by_url.values())
         except Exception as e:
-            print(f"[Enrich] Tech Error: {e}")
+            print(f"[Enrich] Tech hydration error: {e}")
 
-    # 2. Model 5 (Strategies)
+    # ── 2. Add statistics to model5 if already present (zero-cost) ──────────
     try:
-        if result.get("model5"):
-            if "statistics" not in result["model5"]:
-                result["model5"]["statistics"] = build_strategy_statistics(result["model5"].get("strategies", []))
-        else:
-            result["model5"] = run_model_5(
-                port_scan_results=result.get("port_scan_results", []),
-                technology_results=result.get("technology_fingerprints", []),
-                http_anomaly_result=result.get("http_anomalies", [{}])[0].get("model4_result", {}) if result.get("http_anomalies") else {}
+        if result.get("model5") and "statistics" not in result["model5"]:
+            result["model5"]["statistics"] = build_strategy_statistics(
+                result["model5"].get("strategies", [])
             )
-            result["model5"]["statistics"] = build_strategy_statistics(result["model5"].get("strategies", []))
     except Exception as e:
-        print(f"[Enrich] Model 5 Error: {e}")
+        print(f"[Enrich] Model 5 statistics error: {e}")
 
-    # 3. Model 6 (Risk Scoring)
-    try:
-        model6_data = result.get("model6", [])
-        if not model6_data:
-            tech_results = result.get("technology_fingerprints", [])
-            raw_docs = result.get("raw_docs", [])
-            subdomain_metrics = {s["subdomain"]: len(s.get("open_ports", [])) for s in raw_docs}
-            anomaly_map = {a["subdomain"]: a["model4_result"] for a in result.get("http_anomalies", [])}
-            
-            vulnerabilities_to_score = []
-            for tech_res in tech_results:
-                url = tech_res.get("url", "")
-                subdomain = url.replace("http://", "").replace("https://", "")
-                for tech in tech_res.get("technologies", []):
-                    port = tech.get("metadata", {}).get("port") or (443 if "https://" in url else 80)
-                    for cve in tech.get("cves", []):
-                        vulnerabilities_to_score.append({
-                            "domain": domain, "subdomain": subdomain, "service_name": tech.get("technology"),
-                            "version": tech.get("version", ""), "port_number": int(port),
-                            "cvss_score": float(cve.get("cvss", 0.0)), "cve_id": cve.get("cve"),
-                            "traffic_anomaly_score": float(anomaly_map.get(subdomain, {}).get("anomaly_score", 0.0)),
-                            "subdomain_count": len(raw_docs), "exposed_service_count": subdomain_metrics.get(subdomain, 0)
-                        })
-            if vulnerabilities_to_score:
-                scorer = get_model6()
-                result["model6"] = scorer.predict_batch(vulnerabilities_to_score)
-    except Exception as e:
-        print(f"[Enrich] Model 6 Error: {e}")
-
-    # 4. Model 7 (Recommendations) - Try to fetch from DB if missing in result
+    # ── 3. Fetch recommendations from DB if already generated ───────────────
     if not result.get("recommendations"):
         try:
-            recs = list(db.recommendations_collection.find({"report_id": str(record["_id"])}, {"_id": 0}))
+            recs = list(db.recommendations_collection.find(
+                {"report_id": str(record["_id"])}, {"_id": 0}
+            ))
             if recs:
                 result["recommendations"] = recs
         except Exception as e:
-            logger.warning(f"[Enrich] Report {record.get('_id')} has no domain. Cannot enrich.")
+            logger.warning(f"[Enrich] Recommendations fetch error for {record.get('_id')}: {e}")
 
     return record
+
 
 @report_bp.route("/get_technologies", methods=["GET"])
 @login_required

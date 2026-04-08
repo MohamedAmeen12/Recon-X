@@ -240,6 +240,16 @@ def scan_domain():
                     if sub.get("live_http")
                 ]
 
+                # ── Fallback: if HTTP probing found nothing live, use all
+                # resolved subdomains so Model 3 still has targets to check.
+                if not live_subdomains:
+                    live_subdomains = [
+                        sub for sub in result.get("raw_docs", [])
+                        if sub.get("ip")  # at minimum it resolved to an IP
+                    ]
+                    if live_subdomains:
+                        print(f"[Model 3] No live_http subdomains found — falling back to {len(live_subdomains)} resolved subdomains")
+
                 if live_subdomains:
                     subdomains_data = []
                     for sub_doc in live_subdomains[:5]:

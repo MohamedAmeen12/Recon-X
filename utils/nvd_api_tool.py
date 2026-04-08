@@ -343,18 +343,39 @@ class NVDApiClient:
         version: str = ""
     ) -> Optional[pd.DataFrame]:
         """
-        Convenience method to lookup vulnerabilities for a technology/version.
-        
+        Lookup vulnerabilities for a technology/version.
+
+        Strategy:
+        1. Try CPE-based search first (most accurate — matches exact product + version).
+        2. Fall back to free-text keyword search if CPE returns nothing.
+
         Args:
             tech_name: Technology name (e.g., "Apache", "WordPress")
             version: Version string (e.g., "2.4.41", "5.8")
-        
+
         Returns:
             pandas.DataFrame with CVE data or None if error
         """
+        # ── Step 1: Build a CPE 2.3 URI and try the precise lookup ──────────
+        if version:
+            # Normalise: lowercase, spaces → underscores, strip patch qualifiers
+            safe_name    = tech_name.lower().replace(" ", "_").replace("-", "_")
+            safe_version = version.split(" ")[0]  # "2.4.41 (Ubuntu)" → "2.4.41"
+            cpe_uri      = f"cpe:2.3:a:*:{safe_name}:{safe_version}:*:*:*:*:*:*:*"
+            logger.info(f"[NVD] Trying CPE lookup: {cpe_uri}")
+
+            df_cpe = self.search_by_cpe(cpe_uri, results_per_page=20)
+            if df_cpe is not None and not df_cpe.empty:
+                logger.info(f"[NVD] CPE lookup returned {len(df_cpe)} results for {tech_name} {version}")
+                return df_cpe
+
+            logger.info(f"[NVD] CPE lookup empty — falling back to keyword for {tech_name} {version}")
+
+        # ── Step 2: Keyword fallback (less precise but catches more) ─────────
         keyword = f"{tech_name} {version}".strip()
-        logger.info(f"Looking up vulnerabilities for: {keyword}")
+        logger.info(f"[NVD] Keyword lookup: '{keyword}'")
         return self.search_by_keyword(keyword)
+
 
 
 # Global client instance (lazy initialization)

@@ -5,16 +5,15 @@ import threading
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 
 # ====================================================
-# MONKEY PATCH: Fix CSRF token extraction bug
+# MONKEY PATCH: Fix CSRF token and response type bugs in sublist3r
 # ====================================================
-# The original get_csrftoken method fails when the regex doesn't match (IndexError)
-# This patch handles the case gracefully by trying multiple patterns
 def patched_get_csrftoken(self, resp):
-    """Fixed version of get_csrftoken that handles missing tokens gracefully."""
-    if not resp:
-        raise ValueError("Empty response received")
+    """Fixed version of get_csrftoken that handles missing tokens and int responses."""
+    # Bug fix: if resp is an int (error code 0), findall will fail
+    if not isinstance(resp, (str, bytes)):
+        raise ValueError(f"Invalid response type: {type(resp)}")
     
-    # Try multiple CSRF token patterns (different websites use different formats)
+    # Try multiple CSRF token patterns
     patterns = [
         r'<input type="hidden" name="csrfmiddlewaretoken" value="(.*?)">',
         r'<input name="csrfmiddlewaretoken" type="hidden" value="(.*?)">',
@@ -24,42 +23,64 @@ def patched_get_csrftoken(self, resp):
     ]
     
     for pattern in patterns:
-        csrf_regex = re.compile(pattern, re.S | re.I)
-        matches = csrf_regex.findall(resp)
-        if matches:
-            token = matches[0].strip()
-            if token:
-                return token
+        try:
+            csrf_regex = re.compile(pattern, re.S | re.I)
+            matches = csrf_regex.findall(resp)
+            if matches:
+                token = matches[0].strip()
+                if token:
+                    return token
+        except:
+            continue
     
-    # If no token found, raise a specific exception that enumerate can catch
-    # This prevents the IndexError and allows graceful handling
     raise ValueError("CSRF token not found in response")
 
-# Patch enumerate method to handle missing CSRF token gracefully
 def patched_enumerate(self):
-    """Fixed enumerate that handles missing CSRF token gracefully."""
+    """Improved enumerate with better error handling and parallel checking."""
     self.lock = threading.BoundedSemaphore(value=70)
-    resp = self.req('GET', self.base_url)
-    
     try:
+        # Check if req method exists (specific to DNSdumpster and some others)
+        if hasattr(self, 'req'):
+            resp = self.req('GET', self.base_url)
+        else:
+            return self.live_subdomains
+
         token = self.get_csrftoken(resp)
-    except ValueError as e:
-        # CSRF token not found - skip this engine gracefully
+    except Exception as e:
         if self.verbose:
-            self.print_(f"{self.engine_name}: Skipping - CSRF token not found")
-        return self.live_subdomains  # Return empty list, don't crash
+            self.print_(f"{self.engine_name}: Engine skipped due to: {str(e)}")
+        return self.live_subdomains
     
     params = {'csrfmiddlewaretoken': token, 'targetip': self.domain}
-    post_resp = self.req('POST', self.base_url, params)
+    try:
+        if hasattr(self, 'req'):
+            post_resp = self.req('POST', self.base_url, params)
+            if post_resp:
+                self.extract_domains(post_resp)
+    except:
+        pass
     
-    if post_resp:
-        self.extract_domains(post_resp)
-    
+    # Parallel host checking (fixing the sequential join bug)
+    threads = []
     for subdomain in self.subdomains:
         t = threading.Thread(target=self.check_host, args=(subdomain,))
+        t.setDaemon(True)
         t.start()
-        t.join()
+        threads.append(t)
+    
+    for t in threads:
+        t.join(timeout=2) # Don't hang forever
+        
     return self.live_subdomains
+
+# Apply patches to engines that have the problematic CSRF methods
+for engine_name in ['DNSdumpster', 'Netcraft']:
+    if hasattr(sublist3r, engine_name):
+        cls = getattr(sublist3r, engine_name)
+        if hasattr(cls, 'get_csrftoken'):
+            cls.get_csrftoken = patched_get_csrftoken
+        if hasattr(cls, 'enumerate'):
+            cls.enumerate = patched_enumerate
 
 # Apply the monkey patches to DNSdumpster class
 if hasattr(sublist3r, 'DNSdumpster'):

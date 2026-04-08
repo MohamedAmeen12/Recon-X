@@ -71,6 +71,20 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     const data = await resp.json();
 
+    // ── DEBUG: log the full structure so we can see what the API returns ──
+    console.group("ReconX Report Debug");
+    console.log("Top-level keys:", Object.keys(data));
+    console.log("total_candidates (top):", data.total_candidates);
+    console.log("result keys:", data.result ? Object.keys(data.result) : "NO RESULT");
+    if (data.result) {
+      console.log("raw_docs count:", (data.result.raw_docs || []).length);
+      console.log("total_candidates (result):", data.result.total_candidates);
+      console.log("resolved (result):", data.result.resolved);
+      console.log("tech_fingerprints count:", (data.result.technology_fingerprints || []).length);
+      console.log("model6 count:", (data.result.model6 || []).length);
+    }
+    console.groupEnd();
+
     if (data.domain) {
       domainTitle.textContent = `${data.domain}`;
     }
@@ -92,18 +106,47 @@ document.addEventListener("DOMContentLoaded", async () => {
     /* ===============================
        METRICS CALCULATION
     =============================== */
-    const totalSubdomains = r.raw_docs ? r.raw_docs.length : 0;
+    // Subdomain count — cascade through every available field
+    const totalSubdomains =
+      (r.raw_docs && r.raw_docs.length > 0)                 ? r.raw_docs.length        :
+      (r.total_candidates  && r.total_candidates  > 0)      ? r.total_candidates        :
+      (data.total_candidates && data.total_candidates > 0)  ? data.total_candidates     :
+      (r.resolved          && r.resolved          > 0)      ? r.resolved                : 0;
+
     const model6Data = r.model6 || [];
     const totalVulnerabilities = model6Data.length;
-    
+
+    // Also count CVEs from tech fingerprints as a secondary vuln indicator
+    let techCveCount = 0;
+    (r.technology_fingerprints || []).forEach(tf => {
+      (tf.technologies || []).forEach(t => {
+        techCveCount += (t.cves || []).length;
+      });
+    });
+    const displayVulns = totalVulnerabilities || techCveCount;
+
     let criticalCount = 0;
     let highCount = 0;
 
     model6Data.forEach(vuln => {
-        const severity = (vuln.risk_level || "").toLowerCase();
-        if (severity === 'critical') criticalCount++;
-        else if (severity === 'high') highCount++;
+        const severity = ((vuln.risk_level || vuln.severity || "")).toLowerCase();
+        if (severity === "critical") criticalCount++;
+        else if (severity === "high") highCount++;
     });
+
+    // If model6 is empty, fall back to CVSS-based counting from tech fingerprints
+    if (!model6Data.length) {
+      (r.technology_fingerprints || []).forEach(tf => {
+        (tf.technologies || []).forEach(t => {
+          (t.cves || []).forEach(cve => {
+            const cvss = parseFloat(cve.cvss || 0);
+            const sev  = (cve.severity || "").toLowerCase();
+            if (sev === "critical" || cvss >= 9.0) criticalCount++;
+            else if (sev === "high"     || cvss >= 7.0) highCount++;
+          });
+        });
+      });
+    }
 
     /* ===============================
        1. SUMMARY CARDS
@@ -130,7 +173,7 @@ document.addEventListener("DOMContentLoaded", async () => {
               <i class="ph-fill ph-bug"></i>
             </div>
           </div>
-          <div class="mt-2 text-3xl font-bold">${totalVulnerabilities}</div>
+          <div class="mt-2 text-3xl font-bold">${displayVulns}</div>
           <div class="text-gray-500 dark:text-gray-400 text-xs font-semibold uppercase tracking-wider mt-1">Vulnerabilities Found</div>
         </div>
 
