@@ -59,11 +59,11 @@ You have access to the following security assessment context for a target domain
 User Question: {question}
 
 Instructions:
-1. Provide a professional, concise, and technically accurate answer.
+1. Provide a professional, structured, and technically accurate answer.
 2. Use the context provided to ground your answer in facts.
-3. If the answer is not in the context, use your general security knowledge but stay cautious.
-4. Format your response with clear bullet points if giving advice.
-5. Limit your response to 3-4 paragraphs maximum.
+3. NEVER output a single massive paragraph. You MUST break your answer into well-structured sections.
+4. Format your response heavily with clear bullet points. Ensure EVERY bullet point starts on a NEW LINE.
+5. Highlight important terms using bold formatting (e.g., **Vulnerability:**).
 
 Answer:
 """
@@ -76,7 +76,7 @@ Answer:
                 return response.text.strip()
         except Exception as e:
             error_msg = str(e).lower()
-            logger.info(f"Gemini Service configured with model: {self.model_name}")
+            logger.info(f"Gemini Service configured with model: {PRIMARY_MODEL}")
             
             # Detect Quota Error
             if "429" in error_msg or "quota" in error_msg:
