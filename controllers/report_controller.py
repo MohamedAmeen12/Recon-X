@@ -9,6 +9,9 @@ from middlewares.auth_middleware import login_required
 from bson.objectid import ObjectId
 from utils.audit_logger import log_audit_event
 import config.database as db
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 # ==============================
 # MODEL 5 IMPORTS
@@ -125,7 +128,7 @@ def enrich_report_data(record):
             if recs:
                 result["recommendations"] = recs
         except Exception as e:
-            print(f"[Enrich] Rec Error: {e}")
+            logger.warning(f"[Enrich] Report {record.get('_id')} has no domain. Cannot enrich.")
 
     return record
 

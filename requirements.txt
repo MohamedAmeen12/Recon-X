@@ -13,3 +13,5 @@ scapy
 beautifulsoup4
 pdfkit
 python-dotenv
+google-generativeai
+Flask-Limiter

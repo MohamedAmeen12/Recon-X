@@ -8,8 +8,6 @@ import datetime
 from flask import request, jsonify, Blueprint, session
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from bson.objectid import ObjectId
-import time
-import datetime
 import numpy as np
 from middlewares.auth_middleware import login_required
 from middlewares.admin_middleware import admin_required
@@ -23,6 +21,11 @@ from utils.http_collector import collect_http_features
 from utils.traffic_collector import capture_traffic
 from utils.domain_validator import normalize_domains
 from utils.audit_logger import log_audit_event
+from utils.ssrf_protection import is_safe_target
+from utils.logger import get_logger
+from utils.extensions import limiter
+
+logger = get_logger(__name__)
 
 from config.database import (
     subdomains_collection,
@@ -88,17 +91,14 @@ def add_domain():
     )
 
     # ── Audit Log ──
-    log_audit_event(
-        action="domain_added",
-        domain=domain_name,
-        details={"added_by": "admin"},
-    )
+    logger.info(f"Domain added: {domain_name}")
 
     return jsonify({"message": "Domain saved successfully!"}), 201
 
 
 @scan_bp.route("/scan_domain", methods=["POST"])
 @login_required
+@limiter.limit("5 per hour") if limiter else lambda f: f
 def scan_domain():
     try:
 
@@ -108,6 +108,13 @@ def scan_domain():
 
         if not domain:
             return jsonify({"error": "Domain is required"}), 400
+
+        # ----------------------------------------------------
+        # SSRF PROTECTION: block internal/private targets
+        # ----------------------------------------------------
+        is_safe, ssrf_reason = is_safe_target(domain)
+        if not is_safe:
+            return jsonify({"error": f"Scan target rejected: {ssrf_reason}"}), 403
 
         # ----------------------------------------------------
         # SECURITY ENFORCEMENT: only allow registered domains

@@ -4,6 +4,7 @@ MVC Architecture
 """
 import os
 import sys
+from datetime import timedelta
 from flask import Flask
 from flask_cors import CORS
 
@@ -13,6 +14,11 @@ try:
     load_dotenv()
 except ImportError:
     pass  # python-dotenv not installed; env vars must be set manually
+
+# Initialize logging before anything else
+from utils.logger import setup_logging, get_logger
+setup_logging()
+logger = get_logger("reconx")
 
 # ====================================================
 # PATH CONFIGURATION
@@ -32,13 +38,21 @@ app = Flask(__name__,
 app.secret_key = os.environ.get("SECRET_KEY", "reconx_super_secret_key_123")
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
-    SESSION_COOKIE_SAMESITE="Lax",   # ✅ IMPORTANT
-    SESSION_COOKIE_SECURE=False      # localhost only
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=False,      # localhost only
+    PERMANENT_SESSION_LIFETIME=timedelta(minutes=30),
 )
 CORS(
     app,
+    origins=["http://localhost:5000", "http://127.0.0.1:5000"],
     supports_credentials=True
 )
+
+# ====================================================
+# RATE LIMITING
+# ====================================================
+from utils.extensions import limiter
+limiter.init_app(app)
 
 
 # ====================================================
@@ -46,7 +60,10 @@ CORS(
 # ====================================================
 # Import database config (this will initialize MongoDB connection)
 from config.database import connect_mongodb
-connect_mongodb()
+
+# Only connect once (prevents double-connection and double-logging in debug mode)
+if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug:
+    connect_mongodb()
 
 # ====================================================
 # REGISTER BLUEPRINTS (CONTROLLERS)
@@ -79,16 +96,20 @@ if __name__ == "__main__":
         _original_excepthook(args)
     threading.excepthook = _patch_winerror_10038
 
-    print("=" * 60)
-    print("[*] Starting ReconX Flask Server...")
-    print("=" * 60)
-    print("[*] Server running on: http://localhost:5000")
-    print("[*] Access the application at:")
-    print("   • Login:     http://localhost:5000/login")
-    print("   • Signup:    http://localhost:5000/signup")
-    print("   • Home:      http://localhost:5000/home")
-    print("   • Scan:      http://localhost:5000/scan")
-    print("   • Report:    http://localhost:5000/report")
-    print("   • Admin:     http://localhost:5000/admin")
-    print("=" * 60)
-    app.run(debug=True, host='0.0.0.0', port=5000, threaded=True)
+    logger.info("=" * 60)
+    logger.info("Starting ReconX Flask Server...")
+    logger.info("=" * 60)
+    logger.info("Server running on: http://localhost:5000")
+    logger.info("Access the application at:")
+    logger.info("   Login:     http://localhost:5000/login")
+    logger.info("   Signup:    http://localhost:5000/signup")
+    logger.info("   Home:      http://localhost:5000/home")
+    logger.info("   Scan:      http://localhost:5000/scan")
+    logger.info("   Report:    http://localhost:5000/report")
+    logger.info("   Admin:     http://localhost:5000/admin")
+    logger.info("=" * 60)
+    try:
+        app.run(debug=True, host='0.0.0.0', port=5000, threaded=True)
+    except KeyboardInterrupt:
+        logger.info("Server stopped by user (KeyboardInterrupt).")
+        sys.exit(0)

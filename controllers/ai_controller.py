@@ -15,6 +15,10 @@ from utils.ai_security_assistant import (
 )
 from utils.gemini_service import gemini_service
 from controllers.report_controller import enrich_report_data
+from utils.logger import get_logger
+from utils.extensions import limiter
+
+logger = get_logger(__name__)
 
 ai_bp = Blueprint('ai', __name__)
 
@@ -23,35 +27,35 @@ def get_scan_results(report_id):
     Helper to fetch and enrich scan results.
     """
     try:
-        print(f"[AI Debug] get_scan_results called with ID: {report_id}")
+        logger.debug(f"[AI Debug] get_scan_results called with ID: {report_id}")
         if db_config.reports_collection is None:
-            print("[AI Debug] reports_collection is None!")
+            logger.error("[AI Debug] reports_collection is None!")
             return None
             
         try:
             oid = ObjectId(report_id)
         except Exception as e:
-            print(f"[AI Debug] Invalid ObjectId format: {report_id} - {e}")
+            logger.error(f"[AI Debug] Invalid ObjectId format: {report_id} - {e}")
             return None
 
         record = db_config.reports_collection.find_one({"_id": oid})
         if not record:
-            print(f"[AI Debug] No record found in DB for ID: {report_id}")
+            logger.warning(f"[AI Debug] No record found in DB for ID: {report_id}")
             return None
         
-        print(f"[AI Debug] Record found for domain: {record.get('domain')}. Proceeding to enrichment.")
+        logger.debug(f"[AI Debug] Record found for domain: {record.get('domain')}. Proceeding to enrichment.")
         # Enrich just like the report generator and dashboard
         record = enrich_report_data(record)
         
         res = record.get("result")
         if res is None:
-            print("[AI Debug] record['result'] is None after enrichment!")
+            logger.error("[AI Debug] record['result'] is None after enrichment!")
             return {} # Return empty dict instead of None to distinguish from "not found"
         
-        print(f"[AI Debug] Retrieval successful. result keys: {list(res.keys())}")
+        logger.debug(f"[AI Debug] Retrieval successful. result keys: {list(res.keys())}")
         return res
     except Exception as e:
-        print(f"[AI Controller] Error fetching scan: {e}")
+        logger.error(f"[AI Controller] Error fetching scan: {e}")
         import traceback
         traceback.print_exc()
         return None
@@ -123,6 +127,7 @@ def ai_biggest_risk():
 
 @ai_bp.route("/api/ai/ask", methods=["POST"])
 @login_required
+@limiter.limit("20 per hour")
 def ai_ask():
     data = request.get_json() or {}
     report_id = data.get("report_id")
@@ -141,7 +146,7 @@ def ai_ask():
     # 2. If rule-based fails or is generic, fallback to Gemini
     # Generic failure message from answer_custom_question is usually "I'm sorry, I couldn't find a specific answer..."
     if "I'm sorry, I couldn't find a specific answer" in response:
-        print(f"[AI Controller] Rule-based failed. Falling back to Gemini for question: {question}")
+        logger.info(f"[AI Controller] Rule-based failed. Falling back to Gemini for question: {question}")
         
         # Prepare rich context for Gemini
         try:
@@ -168,7 +173,7 @@ BIGGEST IDENTIFIED RISK:
             response = gemini_response
             
         except Exception as e:
-            print(f"[AI Controller] Hybrid error: {e}")
+            logger.info(f"AI question asked: {question[:50]}...")
             # Keep the original rule-based fallback if Gemini fails completely
             pass
 

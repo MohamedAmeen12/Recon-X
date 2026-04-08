@@ -6,11 +6,11 @@ import os
 import time
 from pymongo import MongoClient
 from typing import Optional
+from utils.logger import get_logger
 
-MONGO_URI = os.getenv(
-    "MONGO_URI",
-    "mongodb+srv://youssef2203723_db_user:SQmEU8rJv4amXR38@cluster0.tfybtes.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
-)
+logger = get_logger(__name__)
+
+MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017/reconx_db")
 
 MAX_RETRIES = 3
 RETRY_DELAY = 2
@@ -41,7 +41,7 @@ def connect_mongodb():
 
     for attempt in range(MAX_RETRIES):
         try:
-            print(f"[DB] Connecting (attempt {attempt+1})")
+            logger.info(f"Connecting to MongoDB (attempt {attempt+1})")
 
             client = MongoClient(
                 MONGO_URI,
@@ -51,8 +51,7 @@ def connect_mongodb():
             )
 
             client.server_info()
-            client.server_info()
-            print("[OK] MongoDB connected")
+            logger.info("MongoDB connected successfully")
 
             db = client["reconx_db"]
 
@@ -63,17 +62,31 @@ def connect_mongodb():
             subdomains_collection = db["subdomains"]
             technologies_collection = db["technologies"]
             vulnerabilities_collection = db["vulnerabilities"]
-            anomalies_collection = db["anomalies"]  # 🔥 MODEL 4
+            anomalies_collection = db["anomalies"]  # Model 4
             recommendations_collection = db["recommendations"]  # Model 7
             audit_logs_collection = db["audit_logs"]  # Audit Logs
+
+            # ── Create indexes for query performance ──
+            try:
+                users_collection.create_index("email", unique=True)
+                reports_collection.create_index([("user_id", 1), ("scanned_at", -1)])
+                reports_collection.create_index([("domain", 1), ("scanned_at", -1)])
+                subdomains_collection.create_index([("domain", 1), ("subdomain", 1)])
+                technologies_collection.create_index([("domain", 1), ("subdomain", 1)])
+                anomalies_collection.create_index([("domain", 1), ("subdomain", 1)])
+                audit_logs_collection.create_index([("timestamp", -1)])
+                audit_logs_collection.create_index("action")
+                logger.info("MongoDB indexes ensured")
+            except Exception as e:
+                logger.warning(f"Index creation error (non-fatal): {e}")
 
             return True
 
         except Exception as e:
-            print(f"[X] MongoDB error: {e}")
+            logger.error(f"MongoDB error: {e}")
             time.sleep(RETRY_DELAY)
 
-    print("[!] MongoDB OFFLINE — using dummy collections")
+    logger.warning("MongoDB OFFLINE — using dummy collections")
     _init_dummy_collections()
     return False
 

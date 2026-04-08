@@ -8,6 +8,9 @@ insights when the rule-based assistant reaches its limits.
 import os
 import google.generativeai as genai
 from typing import Optional
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 # Configuration
 PRIMARY_MODEL = "gemini-flash-latest"
@@ -67,17 +70,17 @@ Answer:
         
         # Try Primary Model
         try:
-            print(f"[Gemini Service] Attempting query with primary model ({PRIMARY_MODEL})...")
+            logger.info(f"[Gemini Service] Attempting query with primary model ({PRIMARY_MODEL})...")
             response = self.primary_model.generate_content(prompt)
             if response and response.text:
                 return response.text.strip()
         except Exception as e:
             error_msg = str(e).lower()
-            print(f"[Gemini Service] Primary model error: {e}")
+            logger.info(f"Gemini Service configured with model: {self.model_name}")
             
             # Detect Quota Error
             if "429" in error_msg or "quota" in error_msg:
-                print("[Gemini Service] Quota limit detected on primary model.")
+                logger.warning("[Gemini Service] Quota limit detected on primary model.")
                 # We still try the fallback just in case it has its own quota
             
         # Try Fallback Model

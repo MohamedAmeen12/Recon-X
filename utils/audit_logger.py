@@ -17,6 +17,9 @@ import json
 import hashlib
 import datetime
 from flask import request, session
+from utils.logger import get_logger
+
+audit_logger = get_logger("audit")
 
 AUDIT_HMAC_SECRET = os.getenv(
     "AUDIT_HMAC_SECRET",
@@ -111,4 +114,4 @@ def log_audit_event(
     try:
         audit_logs_collection.insert_one(payload)
     except Exception as e:
-        print(f"[AUDIT] Failed to write audit log: {e}")
+        audit_logger.info(f"AUDIT EVENT: {action} | User: {user_id} | Email: {email} | IP: {ip_address} | Domain: {domain} | Details: {details}")

@@ -15,6 +15,10 @@ from config.database import users_collection, user_logs_collection
 from utils.domain_validator import normalize_domains
 from utils.audit_logger import log_audit_event
 from middlewares.auth_middleware import login_required
+from utils.logger import get_logger
+from utils.extensions import limiter
+
+logger = get_logger(__name__)
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -109,6 +113,7 @@ def _validate_password_strength(password: str):
 
 
 @auth_bp.route("/signup", methods=["POST"])
+@limiter.limit("5 per minute") if limiter else lambda f: f
 def signup():
     data = request.get_json() or {}
     email = data.get("email")
@@ -158,6 +163,7 @@ def signup():
 
 
 @auth_bp.route("/login", methods=["POST"])
+@limiter.limit("10 per minute") if limiter else lambda f: f
 def login():
     """
     Unified login endpoint for both regular users and admin.
@@ -191,7 +197,7 @@ def login():
             details={"reason": "User not found"},
             user_override={"username": "Unknown", "email": email, "user_id": ""},
         )
-        return jsonify({"message": "User not found!"}), 404
+        return jsonify({"message": "Invalid email or password"}), 401
 
     # Check if user is pending (BLOCK LOGIN for non-admin users)
     if user.get("role") != "admin" and user.get("status", "pending") != "active":
@@ -224,6 +230,7 @@ def login():
             "ip": ip_address,
             "login_time": datetime.datetime.utcnow()
         })
+        session.permanent = True
         session["logged_in"] = True
         session["user_id"] = str(user["_id"])
         session["role"] = user.get("role", "user")
@@ -261,7 +268,7 @@ def login():
                 "user_id": str(user["_id"]),
             },
         )
-        return jsonify({"message": "Incorrect password!"}), 401
+        return jsonify({"message": "Invalid email or password"}), 401
 
 
 @auth_bp.route("/logout", methods=["POST", "GET"])
@@ -433,8 +440,13 @@ def change_password():
     if not current_password or not new_password:
         return jsonify({'success': False, 'error': 'Both current and new passwords are required'}), 400
 
-    if len(new_password) < 8:
-        return jsonify({'success': False, 'error': 'New password must be at least 8 characters'}), 400
+    # ── Strength validation ──
+    strength_errors = _validate_password_strength(new_password)
+    if strength_errors:
+        return jsonify({
+            'success': False,
+            'error': f'Password must contain: {", ".join(strength_errors)}'
+        }), 400
 
     user_id = session.get('user_id')
 
@@ -468,6 +480,7 @@ def change_password():
 # ══════════════════════════════════════════════════════
 
 @auth_bp.route('/forgot-password/send-otp', methods=['POST'])
+@limiter.limit("3 per minute") if limiter else lambda f: f
 def forgot_password_send_otp():
     """
     Step 1 – validate email, generate & email a 6-digit OTP.
