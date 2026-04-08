@@ -12,34 +12,20 @@ import socket
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, List, Tuple, Optional
+from models.ai_port_service.model_inference import get_predict_service
 
-COMMON_PORTS = {
-    80: "HTTP",
-    443: "HTTPS",
-    21: "FTP",
-    22: "SSH",
-    25: "SMTP",
-    53: "DNS",
-    110: "POP3",
-    143: "IMAP",
-    3306: "MySQL",
-    8080: "HTTP-ALT",
-    8443: "HTTPS-ALT",
-    3389: "RDP",
-    5432: "PostgreSQL",
-    27017: "MongoDB",
-    6379: "Redis",
-    9200: "Elasticsearch"
-}
+DEFAULT_PORTS_TO_SCAN = [
+    80, 443, 21, 22, 25, 53, 110, 143, 3306, 8080, 8443, 3389, 5432, 27017, 6379, 9200
+]
 
 
-def scan_ports(ip, ports=COMMON_PORTS):
+def scan_ports(ip, ports=DEFAULT_PORTS_TO_SCAN):
     """
     Scan ports on a given IP using python-nmap library.
     
     Args:
         ip: IP address to scan
-        ports: Dictionary of port numbers to service names
+        ports: List of port numbers to scan
     
     Returns:
         List of dictionaries with port and service information
@@ -47,7 +33,7 @@ def scan_ports(ip, ports=COMMON_PORTS):
     open_ports = []
     
     # Create port list string for nmap (e.g., "80,443,22")
-    port_list = ",".join(str(port) for port in ports.keys())
+    port_list = ",".join(str(port) for port in ports)
     
     try:
         # Initialize nmap PortScanner
@@ -74,20 +60,19 @@ def scan_ports(ip, ports=COMMON_PORTS):
                 ports_info = nm[ip][proto]
                 for port_num, port_data in ports_info.items():
                     if port_data['state'] == 'open':
-                        # Get service name from nmap or use our default
-                        service_name = port_data.get('name', ports.get(int(port_num), 'unknown'))
+                        # ONLY collect raw fingerprints, no naming assumptions
                         open_ports.append({
                             "port": int(port_num),
-                            "service": service_name,
                             "state": port_data.get('state', 'open'),
                             "product": port_data.get('product', ''),
                             "version": port_data.get('version', ''),
-                            "extrainfo": port_data.get('extrainfo', '')
+                            "extrainfo": port_data.get('extrainfo', ''),
+                            "protocol": proto
                         })
         
     except nmap.PortScannerError:
         # If nmap library fails, fallback to basic socket scan
-        for port, service in ports.items():
+        for port in ports:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.settimeout(1)
             try:
@@ -95,11 +80,11 @@ def scan_ports(ip, ports=COMMON_PORTS):
                 if result == 0:
                     open_ports.append({
                         "port": port,
-                        "service": service,
                         "state": "open",
                         "product": "",
                         "version": "",
-                        "extrainfo": ""
+                        "extrainfo": "",
+                        "protocol": "tcp"
                     })
             except:
                 pass
@@ -107,7 +92,7 @@ def scan_ports(ip, ports=COMMON_PORTS):
                 sock.close()
     except Exception:
         # If any other error occurs, fallback to socket scan
-        for port, service in ports.items():
+        for port in ports:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.settimeout(1)
             try:
@@ -115,18 +100,57 @@ def scan_ports(ip, ports=COMMON_PORTS):
                 if result == 0:
                     open_ports.append({
                         "port": port,
-                        "service": service,
                         "state": "open",
                         "product": "",
                         "version": "",
-                        "extrainfo": ""
+                        "extrainfo": "",
+                        "protocol": "tcp"
                     })
             except:
                 pass
             finally:
                 sock.close()
     
-    return open_ports
+    # --- PURE AI PORT SERVICE CLASSIFICATION ---
+    final_results = []
+    if open_ports:
+        # Construct fingerprints
+        fingerprints = []
+        for p in open_ports:
+            # combine banner
+            product = p.get("product", "")
+            version = p.get("version", "")
+            extrainfo = p.get("extrainfo", "")
+            banner = f"{product} {version} {extrainfo}".strip()
+            
+            fingerprints.append({
+                "port": p["port"],
+                "protocol": p.get("protocol", "tcp"),
+                "state": p.get("state", "open"),
+                "banner": banner
+            })
+            
+        try:
+            # PURE AI CLASSIFICATION: No fallback labels
+            predictions = get_predict_service(fingerprints, model_type="rf")
+            
+            # Map predictions
+            for i, p in enumerate(open_ports):
+                if i < len(predictions):
+                    ai_pred = predictions[i]
+                    final_results.append({
+                        "port": p["port"],
+                        "service": ai_pred.get("service", "Unknown"),
+                        "version": ai_pred.get("version", ""),
+                        "confidence": ai_pred.get("confidence", 0.0)
+                    })
+        except Exception as e:
+            print(f"AI Port Classification failed: {e}")
+            # Do NOT fall back to deterministic if we fail (System should not identify any service)
+            # We return empty array as per validation criteria 
+            return []
+
+    return final_results
 
 
 def scan_ports_parallel(ip_subdomain_pairs, max_workers=20):
