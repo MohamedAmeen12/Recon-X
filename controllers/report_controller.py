@@ -422,6 +422,9 @@ def download_report():
             
             pdf_path = generate_pdf_report(html_path)
             
+            if not pdf_path:
+                return jsonify({"error": "Failed to generate PDF. You need to ensure 'wkhtmltopdf' is installed on your operating system (C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe). Download it from wkhtmltopdf.org"}), 500
+                
             with open(pdf_path, "rb") as f:
                 pdf_data = f.read()
 
