@@ -37,9 +37,13 @@
           </div>
         </div>
         
-        <button type="submit" id="scan-btn" class="w-full flex items-center justify-center gap-2 h-12 rounded-xl bg-gradient-to-r from-cyber-accent to-emerald-400 text-white font-semibold shadow-lg shadow-emerald-500/30 hover:shadow-emerald-500/50 hover:-translate-y-0.5 transition-all text-sm tracking-wide mt-2 btn-glow">
-<<<<<<< HEAD
-          <i class="ph-bold ph-rocket-launch text-lg"></i> Execute Scan Burst
+        <button type="submit" id="scan-btn" 
+          class="w-full flex items-center justify-center gap-2 font-bold shadow-lg mt-4 cursor-pointer border-none"
+          style="background: linear-gradient(135deg, #00c896, #00e0a4); color: #ffffff; border-radius: 14px; padding: 14px 24px; font-size: 16px; box-shadow: 0 0 20px rgba(0, 200, 150, 0.3); transition: all 0.2s ease;"
+          onmouseover="this.style.filter='brightness(1.1)'; this.style.transform='scale(1.02)';"
+          onmouseout="this.style.filter='brightness(1)'; this.style.transform='scale(1)';"
+        >
+          <i class="ph-bold ph-rocket-launch text-xl"></i> Scan Now
         </button>
       </form>
       
@@ -81,26 +85,6 @@
          </div>
       </div>
       
-=======
-          <i class="ph-bold ph-rocket-launch text-lg" id="scan-btn-icon"></i>
-          <span id="scan-btn-label">Execute Scan</span>
-        </button>
-      </form>
-
-      <!-- ── PROGRESS BAR (hidden until scan starts) ── -->
-      <div id="scan-progress-wrapper" class="scan-progress-wrapper" style="display:none;">
-        <div class="scan-progress-header">
-          <div class="scan-progress-pulse"></div>
-          <span class="scan-progress-title">Scanning in progress…</span>
-          <span id="scan-progress-pct" class="scan-progress-pct">0%</span>
-        </div>
-        <div class="scan-progress-track">
-          <div id="scan-progress-bar" class="scan-progress-bar" style="width:0%"></div>
-        </div>
-        <p id="scan-progress-stage" class="scan-progress-stage">Initializing reconnaissance engine…</p>
-      </div>
-
->>>>>>> 3b524e675d94f3ed70cae9a8fb5dfd19fb699947
     </div>
   </div>
   
