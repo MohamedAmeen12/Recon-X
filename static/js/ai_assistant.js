@@ -188,11 +188,19 @@ function addMessage(text, sender) {
     if (sender === 'user') {
         div.innerHTML = `<div class="msg-bubble">${escapeHtml(text)}</div>`;
     } else {
+        // Parse markdown text so lists and formatting work correctly
+        let parsedText = text;
+        if (typeof marked !== 'undefined') {
+            parsedText = marked.parse(text);
+        } else {
+            parsedText = text.includes('<') ? text : escapeHtml(text).replace(/\\n/g, '<br>');
+        }
+
         div.innerHTML = `
             <div class="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center text-white flex-shrink-0">
                 <i class="ph-bold ph-robot"></i>
             </div>
-            <div class="msg-bubble relative break-words dark:text-gray-200">${text.includes('<') ? text : escapeHtml(text)}</div>
+            <div class="msg-bubble ai-markdown-content relative break-words dark:text-gray-200">${parsedText}</div>
         `;
     }
 

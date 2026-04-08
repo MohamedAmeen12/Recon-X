@@ -535,6 +535,10 @@ def generate_pdf_report(html_file_path):
     """
     Converts the HTML file to PDF using wkhtmltopdf.
     """
+    global config
+    if config is None:
+        config = get_pdfkit_config()
+        
     output_pdf = html_file_path.replace(".html", ".pdf")
     options = {
         'page-size': 'A4',
