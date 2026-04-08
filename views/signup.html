@@ -102,11 +102,33 @@
         </div>
 
         <div>
-          <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1" for="domains">Authorized Scopes</label>
-          <p class="text-xs text-gray-500 mb-2">Target domains you have authorization to scan (comma or newline separated)</p>
-          <div class="relative">
-            <div class="absolute top-3.5 left-0 pl-3.5 flex items-start pointer-events-none"><i class="ph text-gray-500 text-lg ph-globe"></i></div>
-            <textarea id="domains" rows="3" placeholder="example.com&#10;api.example.com" required class="form-input pl-11 py-3" style="resize: vertical;"></textarea>
+          <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1" for="domain">Authorized Domain</label>
+          <p class="text-xs text-gray-500 mb-2">Target domain you must verify ownership of</p>
+          <div class="relative flex gap-2">
+            <div class="relative flex-1">
+              <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none"><i class="ph text-gray-500 text-lg ph-globe"></i></div>
+              <input id="domain" type="url" placeholder="https://example.com" required class="form-input pl-11" />
+            </div>
+            <button type="button" id="generateTokenBtn" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-emerald-400 text-xs font-bold rounded-xl border border-emerald-900 transition-colors">
+              Generate Token
+            </button>
+          </div>
+
+          <!-- VERIFICATION INSTRUCTIONS -->
+          <div id="verificationStep" class="hidden mt-4 space-y-4">
+            <div class="p-4 rounded-lg bg-blue-900/40 border border-blue-500/30 text-sm text-blue-200">
+              <p class="mb-2 text-xs"><strong>1. Create file:</strong></p>
+              <code id="verifyUrl" class="block bg-black/50 p-2 rounded text-emerald-400 break-all mb-3 text-[11px] font-mono"></code>
+              <p class="mb-2 text-xs"><strong>2. Paste token:</strong></p>
+              <code id="verifyToken" class="block bg-black/50 p-2 rounded text-emerald-400 break-all text-[11px] font-mono select-all"></code>
+            </div>
+            
+            <button type="button" id="verifyBtn" class="w-full flex justify-center items-center gap-2 py-2 border border-blue-500/30 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-blue-600/80 to-indigo-600/80 hover:from-blue-500 hover:to-indigo-500 btn-glow">
+              Verify Domain <i class="ph-bold ph-shield-check"></i>
+            </button>
+          </div>
+          <div id="verificationSuccess" class="hidden mt-3 text-emerald-400 text-xs font-bold flex items-center gap-2">
+            <i class="ph-fill ph-check-circle text-lg"></i> Domain Verified!
           </div>
         </div>
 

@@ -1,23 +1,87 @@
+let isDomainVerified = false;
+let currentDomain = "";
+
+// TOKEN GENERATION
+document.getElementById("generateTokenBtn").addEventListener("click", async () => {
+    const domainInput = document.getElementById("domain").value.trim();
+    if (!domainInput) {
+        alert("Please enter a valid domain to generate a token.");
+        return;
+    }
+    
+    try {
+        const res = await fetch("/generate-token", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({ domain: domainInput })
+        });
+        const data = await res.json();
+        if (res.ok) {
+            currentDomain = domainInput;
+            const cleanDom = currentDomain.startsWith("http") ? currentDomain.replace(/\/$/, "") : "https://" + currentDomain.replace(/\/$/, "");
+            document.getElementById("verifyUrl").innerText = `${cleanDom}/reconx-verification.txt`;
+            document.getElementById("verifyToken").innerText = data.token;
+            
+            document.getElementById("verificationStep").classList.remove("hidden");
+            document.getElementById("verificationSuccess").classList.add("hidden");
+            isDomainVerified = false;
+        } else {
+            alert(data.error || "Failed to generate token");
+        }
+    } catch (err) {
+        alert("Network error.");
+    }
+});
+
+// TOKEN VERIFICATION
+document.getElementById("verifyBtn").addEventListener("click", async () => {
+    const btnOrig = document.getElementById("verifyBtn").innerHTML;
+    document.getElementById("verifyBtn").innerHTML = "Verifying...";
+    document.getElementById("verifyBtn").disabled = true;
+    try {
+        const res = await fetch("/verify-domain", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({ domain: currentDomain })
+        });
+        const data = await res.json();
+        if (res.ok) {
+            document.getElementById("verificationStep").classList.add("hidden");
+            document.getElementById("verificationSuccess").classList.remove("hidden");
+            
+            // Lock domain input
+            document.getElementById("domain").disabled = true;
+            document.getElementById("domain").classList.add("opacity-50", "cursor-not-allowed");
+            document.getElementById("generateTokenBtn").disabled = true;
+            document.getElementById("generateTokenBtn").classList.add("opacity-50", "cursor-not-allowed");
+            
+            isDomainVerified = true;
+        } else {
+            alert(data.error || "Verification failed");
+        }
+    } catch (err) {
+        alert("Network error.");
+    }
+    document.getElementById("verifyBtn").innerHTML = btnOrig;
+    document.getElementById("verifyBtn").disabled = false;
+});
+
+// FORM SUBMISSION
 document.getElementById("signupForm").addEventListener("submit", async function (e) {
   e.preventDefault();
 
   const name = document.getElementById("name").value.trim();
   const email = document.getElementById("email").value.trim();
-  const domainsRaw = document.getElementById("domains").value.trim();
   const password = document.getElementById("password").value;
   const confirmPassword = document.getElementById("confirmPassword").value;
 
-  if (!isPasswordValid(password)) {
-    alert("Please ensure your password meets all requirements (8+ chars, uppercase, number, special char).");
-    return;
+  if (!isDomainVerified) {
+      alert("Domain verification required before account creation. Please verify your domain.");
+      return;
   }
 
-  // Basic client-side domain parsing and validation
-  const parts = domainsRaw.split(/[\n,]+/).map((p) => p.trim().toLowerCase()).filter(Boolean);
-  const uniqueDomains = Array.from(new Set(parts));
-
-  if (!uniqueDomains.length) {
-    alert("Please enter at least one domain to scan.");
+  if (!isPasswordValid(password)) {
+    alert("Please ensure your password meets all requirements (8+ chars, uppercase, number, special char).");
     return;
   }
 
@@ -34,14 +98,13 @@ document.getElementById("signupForm").addEventListener("submit", async function 
         username: name,
         email: email,
         password: password,
-        domains: uniqueDomains,
+        domain: currentDomain,
       })
     });
 
     const data = await response.json();
 
     if (response.ok) {
-      // ✅ Account created – pending admin approval
       alert(
         "Account created successfully!\n\n" +
         "Your account is pending admin approval. " +
@@ -51,6 +114,17 @@ document.getElementById("signupForm").addEventListener("submit", async function 
     } else {
       alert(data.message || "Signup failed. Please try again.");
       console.error("Signup failed:", data);
+      
+      // If error occurs, allow domain to be re-verified if it dropped out of session
+      if (data.message && data.message.includes("Domain verification required")) {
+         isDomainVerified = false;
+         document.getElementById("domain").disabled = false;
+         document.getElementById("domain").classList.remove("opacity-50", "cursor-not-allowed");
+         document.getElementById("generateTokenBtn").disabled = false;
+         document.getElementById("generateTokenBtn").classList.remove("opacity-50", "cursor-not-allowed");
+         document.getElementById("verificationSuccess").classList.add("hidden");
+         document.getElementById("verificationStep").classList.remove("hidden");
+      }
     }
   } catch (err) {
     console.error("Error connecting to server:", err);

@@ -1,19 +1,21 @@
 document.addEventListener("DOMContentLoaded", () => {
 
   const form = document.querySelector(".scan-form");
-  const domainSelect = document.getElementById("domain-select");
+  const domainInput = document.getElementById("domain-input");
   const submitBtn = document.getElementById("scan-btn");
-  let allowedDomains = [];
 
-  // Message container
+  // Arrays to hold scoped contexts
+  let primaryDomain = "";
+  let additionalDomains = [];
+
   const resultsContainer = document.createElement("div");
   resultsContainer.id = "scan-results";
   resultsContainer.style.margin = "20px auto";
   resultsContainer.style.maxWidth = "600px";
-  resultsContainer.style.background = "white";
+  resultsContainer.style.background = "rgba(0,0,0,0.4)";
   resultsContainer.style.padding = "16px";
   resultsContainer.style.borderRadius = "8px";
-  resultsContainer.style.boxShadow = "0 3px 10px rgba(0,0,0,0.1)";
+  resultsContainer.style.border = "1px solid rgba(255,255,255,0.1)";
   resultsContainer.style.display = "none";
 
   const formParent = form ? form.parentNode : document.body;
@@ -22,53 +24,87 @@ document.addEventListener("DOMContentLoaded", () => {
   function showMessage(msg, isError = false) {
     resultsContainer.style.display = "block";
     resultsContainer.innerHTML = `
-      <p style="color:${isError ? "darkred" : "black"}; margin:0 0 12px 0;">${msg}</p>
+      <p style="color:${isError ? "#ef4444" : "#10b981"}; margin:0 0 12px 0; font-weight: bold; font-family: monospace;">${msg}</p>
     `;
   }
 
   async function loadAllowedDomains() {
     try {
       const resp = await fetch("/user/profile");
-      if (!resp.ok) {
-        throw new Error("Unable to load user profile.");
-      }
+      if (!resp.ok) throw new Error("Unable to load user profile.");
       const data = await resp.json();
-      allowedDomains = (data.allowed_domains || []).map((d) => String(d).toLowerCase());
+      
+      primaryDomain = String(data.primary_domain || "");
+      additionalDomains = (data.additional_domains || []).map((d) => String(d));
 
-      if (!allowedDomains.length) {
-        domainSelect.innerHTML = '<option value="">No registered domains available</option>';
-        domainSelect.disabled = true;
-        submitBtn.disabled = true;
-        showMessage(
-          "You do not have any registered domains. Please contact an administrator to update your account.",
-          true
-        );
-        return;
+      const primaryDisp = document.getElementById("primary-domain-display");
+      if(primaryDisp) primaryDisp.textContent = primaryDomain || "None tied to account";
+      
+      const additionalList = document.getElementById("additional-domains-list");
+      if (additionalList) {
+          additionalList.innerHTML = additionalDomains.length > 0 
+              ? additionalDomains.map(d => `<li><i class="ph-bold ph-caret-right text-emerald-500 mr-1"></i> ${d}</li>`).join("")
+              : `<li class="text-[11px] text-gray-500 italic">No alternative scopes bound</li>`;
       }
-
-      const optionsHtml =
-        '<option value="">Select a domain to scan</option>' +
-        allowedDomains.map((d) => `<option value="${d}">${d}</option>`).join("");
-      domainSelect.innerHTML = optionsHtml;
-      domainSelect.disabled = false;
-      submitBtn.disabled = false;
     } catch (err) {
-      console.error("Failed to load allowed domains:", err);
-      domainSelect.innerHTML = '<option value="">Error loading domains</option>';
-      domainSelect.disabled = true;
-      submitBtn.disabled = true;
-      showMessage(
-        "Could not load your registered domains. Please refresh the page or try again later.",
-        true
-      );
+      console.error("Failed to load scoping domains:", err);
     }
   }
 
-  async function postJSON(url, body) {
-    // Create AbortController for timeout
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 600000); // 10 minutes timeout
+  // ============================
+  // Additional Scopes Validation
+  // ============================
+  let currentAddingDomain = "";
+  document.getElementById("toggleAddDomainBtn")?.addEventListener("click", () => {
+      const f = document.getElementById("addDomainForm");
+      f.classList.toggle("hidden");
+  });
+  
+  document.getElementById("generateNewTokenBtn")?.addEventListener("click", async () => {
+      const dIn = document.getElementById("newDomainInput").value.trim();
+      if(!dIn) return alert("Enter a valid external domain.");
+      try {
+          const res = await fetch("/generate-token", {
+              method: "POST", headers: {"Content-Type":"application/json"},
+              body: JSON.stringify({domain: dIn})
+          });
+          const data = await res.json();
+          if (res.ok) {
+              currentAddingDomain = dIn;
+              const clnD = currentAddingDomain.startsWith("http") ? currentAddingDomain.replace(/\/$/, "") : "https://" + currentAddingDomain;
+              document.getElementById("newVerifyUrl").innerText = `${clnD}/reconx-verification.txt`;
+              document.getElementById("newVerifyToken").innerText = data.token;
+              
+              document.getElementById("newVerificationStep").classList.remove("hidden");
+          } else { alert(data.error || "Generation error."); }
+      } catch (err) { alert("Network exception."); }
+  });
+  
+  document.getElementById("verifyNewBtn")?.addEventListener("click", async () => {
+      const btn = document.getElementById("verifyNewBtn");
+      const orig = btn.innerHTML;
+      btn.innerHTML = "Verifying Route...";
+      btn.disabled = true;
+      try {
+          const res = await fetch("/verify-additional-domain", {
+              method: "POST", headers: {"Content-Type":"application/json"},
+              body: JSON.stringify({domain: currentAddingDomain})
+          });
+          const data = await res.json();
+          if (res.ok) {
+              alert("Alternative Scope Bound Successfully!");
+              loadAllowedDomains(); // Refresh array locally
+              document.getElementById("addDomainForm").classList.add("hidden");
+              document.getElementById("newDomainInput").value = "";
+              document.getElementById("newVerificationStep").classList.add("hidden");
+          } else { alert(data.error || "Validation sequence rejected."); }
+      } catch (err) { alert("Network exception."); }
+      btn.innerHTML = orig; btn.disabled = false;
+  });
 
+  async function postJSON(url, body) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 600000); // 10m
     try {
       const resp = await fetch(url, {
         method: "POST",
@@ -80,74 +116,71 @@ document.addEventListener("DOMContentLoaded", () => {
       return resp;
     } catch (error) {
       clearTimeout(timeoutId);
-      if (error.name === 'AbortError') {
-        throw new Error('Request timeout - scan is taking too long. Please try again.');
-      }
+      if (error.name === 'AbortError') throw new Error('Request timeout limit hit.');
       throw error;
     }
   }
 
+  // ============================
+  // SCAN BURST QUEUEING MODULE
+  // ============================
   form.addEventListener("submit", async (ev) => {
     ev.preventDefault();
     resultsContainer.style.display = "none";
 
-    const domain = domainSelect.value.trim().toLowerCase();
-    if (!domain) {
-      showMessage("Please select a domain to scan.", true);
+    const inputData = domainInput.value.trim();
+    if (!inputData) {
+      showMessage("Please insert targets into the text area.", true);
       return;
     }
 
-    // Client-side enforcement: only allow registered domains
-    if (!allowedDomains.includes(domain)) {
-      showMessage(
-        "You are only allowed to scan the domains registered in your account.",
-        true
-      );
-      return;
-    }
+    const targets = inputData.split(/[\n,]+/).map(t => t.trim().toLowerCase()).filter(Boolean);
+    const uniqueTargets = Array.from(new Set(targets));
+
+    if (!uniqueTargets.length) return;
 
     submitBtn.disabled = true;
-    const origText = submitBtn.textContent;
-    submitBtn.textContent = "Scanning...";
+    domainInput.disabled = true;
+    
+    showMessage(`Starting burst scan for ${uniqueTargets.length} discovered target(s)...`);
 
-    try {
+    for (let i = 0; i < uniqueTargets.length; i++) {
+        const target = uniqueTargets[i];
+        try {
+            resultsContainer.innerHTML = `<p style="color:#10b981; margin:0; font-family:monospace; font-weight:bold;">[${i+1}/${uniqueTargets.length}] Interrogating ${target}...</p>`;
+            
+            const resp = await postJSON("/scan_domain", {
+              domain: target,
+              include_tech_scan: true
+            });
 
-      const resp = await postJSON("/scan_domain", {
-        domain: domain,
-        include_tech_scan: true
-      });
-
-      if (resp.ok) {
-        const data = await resp.json();
-        showMessage("✅ Scan completed! Redirecting to report...");
-
-        setTimeout(() => {
-          if (data.report_id) {
-            window.location.href = `/report?report_id=${data.report_id}`;
-          } else {
-            // Fallback for some reason
-            window.location.href = `/report?domain=${encodeURIComponent(domain)}`;
-          }
-        }, 1500);
-      } else {
-        const errData = await resp.json().catch(() => ({}));
-        showMessage(`Server error: ${resp.status} ${errData.message || ""}`, true);
-      }
-    } catch (err) {
-      let errorMsg = err.message;
-      if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
-        errorMsg = 'Cannot connect to server. Make sure Flask server is running on http://localhost:5000';
-      }
-      showMessage(`Error: ${errorMsg}`, true);
-      console.error('Scan error:', err);
-    } finally {
-      submitBtn.disabled = false;
-      submitBtn.textContent = origText;
+            if (!resp.ok) {
+              const errData = await resp.json().catch(() => ({}));
+              alert(`Scan halted on ${target} due to API Rejection: ${errData.error || errData.message}`);
+              break; // Abort sequential queue on hard blocks (e.g. 403 Forbidden rules)
+            }
+        } catch (err) {
+            let errorMsg = err.message;
+            if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
+              errorMsg = 'Server unreachable drop detected.';
+            }
+            alert(`Scan halted critically on ${target}: ${errorMsg}`);
+            break;
+        }
     }
+    
+    showMessage("✅ Execution Pipeline Completed. Redirecting to consolidated reports...", false);
+    setTimeout(() => {
+        window.location.href = `/reports`; // Just drop them to their central dashboard history
+    }, 2000);
+
+    submitBtn.disabled = false;
+    domainInput.disabled = false;
   });
 
-  // Load the allowed domains for the logged-in user
+  // Load the scoped domains for the logged-in user
   loadAllowedDomains();
+
 
 });
 

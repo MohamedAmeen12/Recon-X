@@ -63,3 +63,33 @@ def normalize_domains(raw_domains: Union[str, Iterable[str]]) -> List[str]:
 
     return normalized
 
+
+def is_domain_allowed(target: str, primary_domain: str) -> bool:
+    """
+    Core Scoping Logic:
+    Allows exact matches or strict subdomains of the verified apex.
+    """
+    if not primary_domain:
+        return False
+    target = target.strip().lower()
+    primary = primary_domain.strip().lower()
+    return target == primary or target.endswith("." + primary)
+
+def is_allowed(target: str, user_doc: dict) -> bool:
+    """
+    Checks if a target domain is authorized by querying the user's primary domain 
+    or any additionally verified alternative structures natively.
+    """
+    if not target or not user_doc:
+        return False
+        
+    if is_domain_allowed(target, user_doc.get("primary_domain", "")):
+        return True
+        
+    for domain in user_doc.get("additional_domains", []):
+        if is_domain_allowed(target, domain):
+            return True
+            
+    return False
+
+

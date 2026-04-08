@@ -128,24 +128,17 @@ def scan_domain():
             try:
                 query_id = ObjectId(user_id)
                 user = users_collection.find_one(
-                    {"_id": query_id}, {"allowed_domains": 1}
+                    {"_id": query_id}, {"primary_domain": 1, "additional_domains": 1}
                 )
             except Exception:
                 user = None
 
-            allowed = []
-            if user and user.get("allowed_domains"):
-                # Normalize from stored list, just in case
-                try:
-                    allowed = normalize_domains(user["allowed_domains"])
-                except Exception:
-                    allowed = []
-
-            if not allowed or domain not in allowed:
+            from utils.domain_validator import is_allowed
+            if not user or not is_allowed(domain, user):
                 return (
                     jsonify(
                         {
-                            "error": "You are only allowed to scan the domains registered in your account."
+                            "error": "You are only allowed to scan domains within your verified scope."
                         }
                     ),
                     403,
