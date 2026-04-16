@@ -56,55 +56,9 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // ============================
-  // Additional Scopes Validation
+  // Additional Scopes Display
   // ============================
-  let currentAddingDomain = "";
-  document.getElementById("toggleAddDomainBtn")?.addEventListener("click", () => {
-      const f = document.getElementById("addDomainForm");
-      f.classList.toggle("hidden");
-  });
-  
-  document.getElementById("generateNewTokenBtn")?.addEventListener("click", async () => {
-      const dIn = document.getElementById("newDomainInput").value.trim();
-      if(!dIn) return alert("Enter a valid external domain.");
-      try {
-          const res = await fetch("/generate-token", {
-              method: "POST", headers: {"Content-Type":"application/json"},
-              body: JSON.stringify({domain: dIn})
-          });
-          const data = await res.json();
-          if (res.ok) {
-              currentAddingDomain = dIn;
-              const clnD = currentAddingDomain.startsWith("http") ? currentAddingDomain.replace(/\/$/, "") : "https://" + currentAddingDomain;
-              document.getElementById("newVerifyUrl").innerText = `${clnD}/reconx-verification.txt`;
-              document.getElementById("newVerifyToken").innerText = data.token;
-              
-              document.getElementById("newVerificationStep").classList.remove("hidden");
-          } else { alert(data.error || "Generation error."); }
-      } catch (err) { alert("Network exception."); }
-  });
-  
-  document.getElementById("verifyNewBtn")?.addEventListener("click", async () => {
-      const btn = document.getElementById("verifyNewBtn");
-      const orig = btn.innerHTML;
-      btn.innerHTML = "Verifying Route...";
-      btn.disabled = true;
-      try {
-          const res = await fetch("/verify-additional-domain", {
-              method: "POST", headers: {"Content-Type":"application/json"},
-              body: JSON.stringify({domain: currentAddingDomain})
-          });
-          const data = await res.json();
-          if (res.ok) {
-              alert("Alternative Scope Bound Successfully!");
-              loadAllowedDomains(); // Refresh array locally
-              document.getElementById("addDomainForm").classList.add("hidden");
-              document.getElementById("newDomainInput").value = "";
-              document.getElementById("newVerificationStep").classList.add("hidden");
-          } else { alert(data.error || "Validation sequence rejected."); }
-      } catch (err) { alert("Network exception."); }
-      btn.innerHTML = orig; btn.disabled = false;
-  });
+  // (Verification flow removed)
 
   async function postJSON(url, body) {
     const controller = new AbortController();
@@ -152,6 +106,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     let didSucceed = false;
 
+    let lastReportId = "";
     for (let i = 0; i < uniqueTargets.length; i++) {
         const target = uniqueTargets[i];
         try {
@@ -162,12 +117,13 @@ document.addEventListener("DOMContentLoaded", () => {
               include_tech_scan: true
             });
 
+            const data = await resp.json().catch(() => ({}));
             if (!resp.ok) {
-              const errData = await resp.json().catch(() => ({}));
-              showMessage(`Scan halted on ${target} due to API Rejection: ${errData.error || errData.message}`, true);
-              break; // Abort sequential queue on hard blocks (e.g. 403 Forbidden rules)
+              showMessage(`Scan halted on ${target} due to API Rejection: ${data.error || data.message}`, true);
+              break; 
             } else {
               didSucceed = true;
+              if (data.report_id) lastReportId = data.report_id;
             }
         } catch (err) {
             let errorMsg = err.message;
@@ -180,9 +136,13 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     
     if (didSucceed) {
-        showMessage("✅ Execution Pipeline Completed. Redirecting to consolidated reports...", false);
+        showMessage("✅ Execution Pipeline Completed. Redirecting to intelligence report...", false);
         setTimeout(() => {
-            window.location.href = `/reports`; 
+            if (lastReportId) {
+                window.location.href = `/report?report_id=${lastReportId}`;
+            } else {
+                window.location.href = `/history`;
+            }
         }, 2000);
     }
 

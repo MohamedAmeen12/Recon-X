@@ -49,38 +49,16 @@
       
       <!-- SCOPE MANAGER -->
       <div class="mt-8 text-left w-full max-w-md animate-fade-in">
-         <h3 class="text-md font-bold border-b border-white/10 pb-2">Authorized Scope Manager</h3>
+         <h3 class="text-md font-bold border-b border-white/10 pb-2">Registered Scopes</h3>
          <div class="mt-3 bg-black/20 p-4 rounded-xl border border-white/5 space-y-4">
             <div>
                <p class="text-xs text-emerald-400 font-bold uppercase tracking-wider">Primary Core</p>
                <p id="primary-domain-display" class="text-sm font-mono mt-1 text-gray-300">Loading...</p>
             </div>
             <div>
-               <div class="flex justify-between items-center">
-                   <p class="text-xs text-emerald-400 font-bold uppercase tracking-wider">Additional Verified Bounds</p>
-                   <button type="button" id="toggleAddDomainBtn" class="text-[10px] bg-white/10 text-white px-2 py-1 flex items-center gap-1 rounded hover:bg-white/20 transition-colors font-semibold">
-                       <i class="ph-bold ph-plus"></i> Bind
-                   </button>
-               </div>
+               <p class="text-xs text-emerald-400 font-bold uppercase tracking-wider">Additional Registered Bounds</p>
                <ul id="additional-domains-list" class="text-sm font-mono mt-2 text-gray-400 space-y-1.5">
                </ul>
-            </div>
-            
-            <!-- VERIFY NEW DOMAIN FORM -->
-            <div id="addDomainForm" class="hidden mt-4 p-4 border border-blue-500/30 bg-blue-900/20 rounded-lg space-y-3">
-                <input id="newDomainInput" type="url" placeholder="https://external-target.com" class="form-input text-sm h-10 w-full" />
-                <button type="button" id="generateNewTokenBtn" class="w-full bg-gray-800 hover:bg-gray-700 text-emerald-400 text-xs py-2 font-bold rounded-lg border border-gray-600 transition-colors shadow-sm">Generate Authorization Token</button>
-                
-                <div id="newVerificationStep" class="hidden space-y-2 mt-3 p-3 bg-black/40 rounded border border-black/50">
-                    <p class="text-[11px] text-gray-400 mb-1">1. Deploy exact file to:</p>
-                    <code id="newVerifyUrl" class="block bg-black/80 p-2 rounded text-emerald-400 break-all text-[11px] font-mono shadow-inner border border-white/5"></code>
-                    <p class="text-[11px] text-gray-400 mt-2 mb-1">2. Inject exact token:</p>
-                    <code id="newVerifyToken" class="block bg-black/80 p-2 rounded text-emerald-400 break-all text-[11px] font-mono select-all shadow-inner border border-white/5"></code>
-                    
-                    <button type="button" id="verifyNewBtn" class="w-full flex justify-center items-center gap-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold py-2.5 rounded-lg mt-3 transition-colors shadow-md">
-                        <i class="ph-bold ph-shield-check text-sm"></i> Authenticate Bounds
-                    </button>
-                </div>
             </div>
          </div>
       </div>

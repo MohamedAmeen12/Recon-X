@@ -14,8 +14,6 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from config.database import users_collection, user_logs_collection
 from utils.domain_validator import normalize_domains
 from utils.audit_logger import log_audit_event
-from utils.token_manager import generate_token, get_token_info, clear_token
-from utils.verification import verify_domain_token, VERIFIED, FILE_NOT_FOUND, MISMATCH, CONNECTION_ERROR
 from middlewares.auth_middleware import login_required
 from utils.logger import get_logger
 from utils.extensions import limiter
@@ -114,84 +112,7 @@ def _validate_password_strength(password: str):
     return errors
 
 
-@auth_bp.route("/generate-token", methods=["POST"])
-@limiter.limit("10 per minute") if limiter else lambda f: f
-def generate_verification_token():
-    data = request.get_json() or {}
-    domain = data.get("domain", "").strip()
-    if not domain:
-        return jsonify({"error": "Domain URL is required."}), 400
-    token = generate_token(domain)
-    return jsonify({"success": True, "domain": domain, "token": token}), 200
 
-
-@auth_bp.route("/verify-domain", methods=["POST"])
-@limiter.limit("5 per minute") if limiter else lambda f: f
-def verify_domain_endpoint():
-    data = request.get_json() or {}
-    domain = data.get("domain", "").strip()
-    if not domain:
-        return jsonify({"error": "Domain URL is required."}), 400
-        
-    token_info = get_token_info(domain)
-    if not token_info:
-        return jsonify({"error": "Token expired or not found. Please generate a new token."}), 400
-        
-    expected_token = token_info["token"]
-    result = verify_domain_token(domain, expected_token)
-    
-    if result == VERIFIED:
-        clear_token(domain)
-        session["verified_domain"] = domain
-        return jsonify({"success": True, "message": "Verification successful!"}), 200
-        
-    elif result == FILE_NOT_FOUND:
-        return jsonify({"error": "File not found. Please ensure reconx-verification.txt exists directly on the root of the domain (HTTP 404/non-200)."}), 400
-    elif result == MISMATCH:
-        return jsonify({"error": "Token mismatch. The content of reconx-verification.txt does not match the generated token."}), 400
-    else:
-        return jsonify({"error": "Connection error. Ensure the domain is strictly available and reachable."}), 400
-
-@auth_bp.route("/verify-additional-domain", methods=["POST"])
-@login_required
-@limiter.limit("5 per minute") if limiter else lambda f: f
-def verify_additional_domain():
-    data = request.get_json() or {}
-    domain = data.get("domain", "").strip()
-    if not domain:
-        return jsonify({"error": "Domain URL is required."}), 400
-        
-    token_info = get_token_info(domain)
-    if not token_info:
-        return jsonify({"error": "Token expired or not found. Please generate a new token."}), 400
-        
-    expected_token = token_info["token"]
-    result = verify_domain_token(domain, expected_token)
-    
-    if result == VERIFIED:
-        clear_token(domain)
-        # Parse cleanly
-        from urllib.parse import urlparse
-        parsed = urlparse(domain)
-        if not parsed.scheme:
-            parsed = urlparse("https://" + domain)
-        base_domain = parsed.netloc
-
-        from bson.objectid import ObjectId
-        query_id = ObjectId(session.get("user_id"))
-        
-        users_collection.update_one(
-            {"_id": query_id},
-            {"$addToSet": {"additional_domains": base_domain}}
-        )
-        return jsonify({"success": True, "message": "Verification successful! Secondary domain added.", "domain": base_domain}), 200
-        
-    elif result == FILE_NOT_FOUND:
-        return jsonify({"error": "File not found. Please ensure reconx-verification.txt exists directly on the root of the domain (HTTP 404/non-200)."}), 400
-    elif result == MISMATCH:
-        return jsonify({"error": "Token mismatch. The content of reconx-verification.txt does not match the generated token."}), 400
-    else:
-        return jsonify({"error": "Connection error. Ensure the domain is strictly available and reachable."}), 400
 
 @auth_bp.route("/signup", methods=["POST"])
 @limiter.limit("5 per minute") if limiter else lambda f: f
@@ -205,8 +126,7 @@ def signup():
     if not email or not username or not password or not domain:
         return jsonify({"message": "All fields are required!"}), 400
 
-    if session.get("verified_domain") != domain:
-        return jsonify({"message": "Domain verification required before account creation."}), 403
+
 
     from urllib.parse import urlparse
     
@@ -227,8 +147,7 @@ def signup():
 
     hashed_pw = generate_password_hash(password)
     
-    # Consume the verification token explicitly 
-    session.pop("verified_domain", None)
+
 
     users_collection.insert_one({
         "email": email,

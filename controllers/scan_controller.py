@@ -117,32 +117,6 @@ def scan_domain():
         if not is_safe:
             return jsonify({"error": f"Scan target rejected: {ssrf_reason}"}), 403
 
-        # ----------------------------------------------------
-        # SECURITY ENFORCEMENT: only allow registered domains
-        # ----------------------------------------------------
-        user_id = session.get("user_id")
-        user_role = session.get("role", "user")
-
-        # Admin can scan any domain
-        if user_role != "admin":
-            try:
-                query_id = ObjectId(user_id)
-                user = users_collection.find_one(
-                    {"_id": query_id}, {"primary_domain": 1, "additional_domains": 1}
-                )
-            except Exception:
-                user = None
-
-            from utils.domain_validator import is_allowed
-            if not user or not is_allowed(domain, user):
-                return (
-                    jsonify(
-                        {
-                            "error": "You are only allowed to scan domains within your verified scope."
-                        }
-                    ),
-                    403,
-                )
 
         start = time.time()
         print(f"Starting scan for domain: {domain} by user {session['user_id']}")

@@ -56,6 +56,8 @@ def report_page():
 
 @view_bp.route("/history")
 @view_bp.route("/history.html")
+@view_bp.route("/reports")
+@view_bp.route("/reports.html")
 @login_required
 def history_page():
     return render_template("history.html")
