@@ -374,8 +374,12 @@ def generate_html_report(scan_results, domain, username, scan_id):
                             <div style="margin-bottom: 2pt;">• {{ sig }}</div>
                             {% endfor %}
                         </div>
+                        {% elif a.model4_result.status == 'suspicious' %}
+                        <div style="font-size: 7.5pt; color: #f97316; font-style: italic;">
+                            • {{ a.model4_result.justification or "Statistical anomaly detected in traffic patterns." }}
+                        </div>
                         {% else %}
-                        <div style="font-size: 7.5pt; color: #10b981;">• No suspicious signals</div>
+                        <div style="font-size: 7.5pt; color: #10b981;">• No suspicious signals detected</div>
                         {% endif %}
                     </div>
                 </div>

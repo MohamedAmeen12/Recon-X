@@ -59,6 +59,52 @@ def load_artifacts():
     return _artifacts["model"], _artifacts["tfidf"]
 
 
+from packaging.version import Version, InvalidVersion
+
+def is_version_in_range(v_str: str, range_info: dict) -> tuple:
+    """
+    Programmatic comparison of detected version against NVD range definitions.
+    Returns: (bool, status_label, range_str)
+    """
+    try:
+        v = Version(v_str)
+        
+        start_inc = range_info.get("start_inc")
+        start_exc = range_info.get("start_exc")
+        end_inc = range_info.get("end_inc")
+        end_exc = range_info.get("end_exc")
+        
+        # Build range string for justification
+        s = start_inc or start_exc or "0"
+        e = end_inc or end_exc or "latest"
+        range_str = f"{s} – {e}"
+        
+        # Check boundaries first (Task 1 Rule 2 in Master Prompt)
+        is_boundary = False
+        if start_inc and v == Version(start_inc): is_boundary = True
+        if start_exc and v == Version(start_exc): is_boundary = True
+        if end_inc and v == Version(end_inc): is_boundary = True
+        if end_exc and v == Version(end_exc): is_boundary = True
+        
+        if is_boundary:
+            return True, "UNCERTAIN (BOUNDARY CASE)", range_str
+
+        in_start = True
+        if start_inc: in_start = (v >= Version(start_inc))
+        elif start_exc: in_start = (v > Version(start_exc))
+        
+        in_end = True
+        if end_inc: in_end = (v <= Version(end_inc))
+        elif end_exc: in_end = (v < Version(end_exc))
+        
+        if in_start and in_end:
+            return True, "CONFIRMED VULNERABILITY", range_str
+            
+        return False, "NOT AFFECTED", range_str
+        
+    except (InvalidVersion, ValueError, TypeError):
+        return False, "INSUFFICIENT EVIDENCE", "Unclear"
+
 def lookup_cve(tech_name, version=""):
     """
     Lookup CVE information using NVD API.
@@ -81,7 +127,9 @@ def lookup_cve(tech_name, version=""):
                         "cvss": float(row["cvss_score"]),
                         "description": row["description"][:200],
                         "severity": row["severity"],
-                        "published_date": row["published_date"]
+                        "published_date": row["published_date"],
+                        "affected_versions": row.get("affected_versions", []),
+                        "cwe": row.get("cwe", "N/A")
                     })
         except FutureTimeoutError:
             logger.warning(f"[Model 3] NVD lookup timed out for {tech_name} {version} — CVEs may be incomplete")
@@ -97,59 +145,60 @@ def lookup_cve(tech_name, version=""):
 
 def classify_vulnerability_status(tech_name, version, cves):
     """
-    Classify vulnerability status using SUPERVISED ML model.
+    STRICT MODE: Programmatic justification replaces supervised ML.
     """
-    # 1. Calculate features from CVEs
-    max_cvss = max([c.get("cvss", 0) for c in cves]) if cves else 0.0
-    cve_count = len(cves)
-    has_version = 1 if version else 0
-    
-    # 2. Load Models
-    model, tfidf = load_artifacts()
-    
-    # Default fallback if models missing
-    if model is None or tfidf is None:
+    # Reject if missing data (Task 1 Rule 4)
+    if not version:
         return {
-            "status": "unknown",
+            "status": "safe",
             "confidence": 0.0,
-            "reason": "Model artifacts not loaded",
-            "max_cvss": max_cvss
+            "reason": "INSUFFICIENT EVIDENCE: Version missing",
+            "cves": []
         }
+
+    valid_cves = []
     
-    # 3. Create Feature Vector
-    try:
-        # Text features
-        fingerprint = create_technology_fingerprint(tech_name, version)
-        X_text = tfidf.transform([fingerprint])
+    for cve in cves:
+        affected_ranges = cve.get("affected_versions", [])
         
-        # Numeric features [max_cvss, cve_count, has_version]
-        X_numeric = np.array([[max_cvss, cve_count, has_version]])
+        if not affected_ranges:
+            continue
+            
+        final_justification = "NOT AFFECTED"
+        final_range = "N/A"
+        matched = False
         
-        # Combine
-        X = hstack([X_text, X_numeric])
+        for r_info in affected_ranges:
+            is_match, status, r_str = is_version_in_range(version, r_info)
+            if is_match:
+                matched = True
+                final_range = r_str
+                if status == "CONFIRMED VULNERABILITY":
+                    final_justification = f"Version {version} is within affected range {r_str}"
+                    break
+                else:
+                    final_justification = status # e.g. UNCERTAIN (BOUNDARY CASE)
+                    # Keep looking for a confirmed match in other ranges
         
-        # 4. Predict
-        prediction = model.predict(X)[0] # 0 or 1
-        probability = model.predict_proba(X)[0][1] # Probability of class 1 (Vulnerable)
-        
-        status = "vulnerable" if prediction == 1 else "safe"
-        confidence = float(probability) if prediction == 1 else float(1 - probability)
-        
+        if matched:
+            cve["justification"] = final_justification
+            cve["affected_version_range"] = final_range
+            valid_cves.append(cve)
+            
+    if not valid_cves:
         return {
-            "status": status,
-            "confidence": confidence,
-            "max_cvss": max_cvss,
-            "cve_count": cve_count,
-            "ml_prediction": int(prediction)
+            "status": "safe",
+            "confidence": 1.0,
+            "reason": "No confirmed vulnerabilities for this version",
+            "cves": []
         }
         
-    except Exception as e:
-        print(f"[Model 3] Inference error: {e}")
-        return {
-            "status": "unknown",
-            "confidence": 0.0,
-            "error": str(e)
-        }
+    return {
+        "status": "vulnerable",
+        "confidence": 1.0,
+        "reason": f"Confirmed {len(valid_cves)} matches",
+        "cves": valid_cves
+    }
 
 
 def run_technology_fingerprinting(urls_data):
@@ -181,19 +230,21 @@ def run_technology_fingerprinting(urls_data):
             # Step 2a: Lookup CVEs (Required for features)
             cves = lookup_cve(tech_name, version)
             
-            # Step 2b: ML Classification
+            # Step 2b: Strict Classification (Task 1)
             vuln_status = classify_vulnerability_status(tech_name, version, cves)
+            
+            # Extract filtered CVEs from status result
+            filtered_cves = vuln_status.get("cves", [])
             
             tech_result = {
                 "technology": tech_name,
                 "version": version,
                 "category": tech.get("category", "Unknown"),
-                # Always attach CVEs — the ML status is advisory only.
-                # Stripping CVEs here would starve Models 5 & 6 of data.
-                "cves": cves,
+                # Task 1 Rule 2: Extract ONLY CVEs where version range matches
+                "cves": filtered_cves,
                 "vulnerability_status": vuln_status["status"],
                 "confidence": vuln_status["confidence"],
-                "max_cvss": vuln_status.get("max_cvss", 0.0),
+                "max_cvss": max([c.get("cvss", 0) for c in filtered_cves]) if filtered_cves else 0.0,
                 "source": tech.get("source", ""),
                 "similarity_score": None,
                 "metadata": {

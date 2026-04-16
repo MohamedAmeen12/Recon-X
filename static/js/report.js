@@ -352,11 +352,16 @@ document.addEventListener("DOMContentLoaded", async () => {
                 </div>
               ` : '';
 
-              const signalList = signals.length ? `
+              const hasSignals = signals.length > 0;
+              const signalList = hasSignals ? `
                 <div class="text-xs space-y-1">
                   ${signals.map(s => `<div class="flex items-start text-red-400 bg-red-500/5 px-2 py-1 rounded border border-red-500/10"><i class="ph-bold ph-warning mr-1.5 mt-0.5 text-red-500 shrink-0"></i> <span>${s}</span></div>`).join("")}
                 </div>
-              ` : `<div class="text-xs text-gray-400 italic px-1"><i class="ph-fill ph-shield-check text-green-500"></i> No suspicious patterns detected.</div>`;
+              ` : (isAnom ? `
+                <div class="text-xs text-orange-400 bg-orange-500/5 px-2 py-1 rounded border border-orange-500/10 italic">
+                  <i class="ph-bold ph-chart-line-up mr-1.5"></i> ${res.justification || "Statistical anomaly detected in traffic patterns."}
+                </div>
+              ` : `<div class="text-xs text-gray-400 italic px-1"><i class="ph-fill ph-shield-check text-green-500"></i> No suspicious patterns detected.</div>`);
 
               return `
                 <div class="glass-card p-4 transition-transform hover:-translate-y-1">
@@ -513,9 +518,9 @@ document.addEventListener("DOMContentLoaded", async () => {
             <i class="ph-bold ph-shield-check text-green-500"></i> Global Vulnerability Index
           </h2>
           <div class="glass-card p-8 flex flex-col justify-center items-center text-center">
-             <i class="ph-fill ph-check-circle text-5xl text-green-500 mb-4 drop-shadow-[0_0_10px_rgba(34,197,94,0.5)]"></i>
-             <h3 class="text-xl font-bold mb-2">System Secure</h3>
-             <p class="text-gray-500 dark:text-gray-400">No verifiable CVEs were detected in the targeted footprint.</p>
+             <i class="ph-fill ph-check-circle text-5xl text-blue-500 mb-4 drop-shadow-[0_0_10px_rgba(59,130,246,0.5)]"></i>
+             <h3 class="text-xl font-bold mb-2">No confirmed vulnerabilities based on strict validation.</h3>
+             <p class="text-gray-500 dark:text-gray-400">Some findings require further verification. Check the analysis proofs for uncertain or boundary cases.</p>
           </div>
         </div>`;
     }

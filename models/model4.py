@@ -104,12 +104,15 @@ class HTTPAnomalyModel:
 
         anomaly_score = float(self.model.decision_function(X_scaled)[0])
         prediction = self.model.predict(X_scaled)[0]  # -1 = anomaly
+        
+        status = "suspicious" if prediction == -1 else "normal"
+        justification = f"Classification as '{status}' is justified by a statistical anomaly score of {round(anomaly_score, 4)} indicating deviation from the learned traffic baseline."
 
         return {
             "model": "Model 4 - HTTP Anomaly Detection",
             "anomaly_score": round(anomaly_score, 4),
-            "status": "suspicious" if prediction == -1 else "normal",
-            "signals": self._signals(features),
+            "status": status,
+            "justification": justification,
             "traffic_data": {
                 "packet_count": features.get("packet_count", 0),
                 "tcp_syn_count": features.get("tcp_syn_count", 0),

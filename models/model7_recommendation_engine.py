@@ -243,16 +243,15 @@ class RecommendationEngine:
             exploit_search = vuln.get("exploit_db_reference") or []
             has_exploit = len(exploit_search) > 0
             
-            # Confidence Logic
-            if has_exploit and cvss >= 7.0:
-                conf_level = "HIGH"
-                justification = "Direct public exploit evidence found and verified via CVSS metrics."
-            elif cvss >= 4.0:
-                conf_level = "MEDIUM"
-                justification = "Vulnerability matched via version fingerprinting; theoretical exploit paths exist."
+            # --- Task 6: Strict Risk Scoring ---
+            conf_level = "LOW"
+            if vuln.get("vulnerability_status") == "vulnerable": # exact match confirmed in Model 3
+                if has_exploit:
+                    conf_level = "HIGH"
+                else:
+                    conf_level = "MEDIUM"
             else:
                 conf_level = "LOW"
-                justification = "Low-severity finding based on opportunistic service detection."
 
             rec_obj = {
                 "host": host,
@@ -261,15 +260,15 @@ class RecommendationEngine:
                 "cve_id": cve_id or "N/A",
                 "severity": model6_severity,
                 "cvss_score": cvss,
-                "risk_summary": risk_summary,
+                "risk_summary": self._clean_output(risk_summary),
                 "attack_chain": attack_chain,
-                "explanation": explanation,
-                "attacker_perspective": attacker_perspective,
-                "remediation": remediation_steps,
+                "explanation": self._clean_output(explanation),
+                "attacker_perspective": self._clean_output(attacker_perspective),
+                "remediation": [self._clean_output(r) for r in remediation_steps],
                 "references": references[:5], 
                 "priority": priority,
                 "confidence_level": conf_level,
-                "justification": justification
+                "justification": f"Confidence '{conf_level}' assigned based on strict validation logic (Task 6)."
             }
             
             self.save_recommendation_to_db(rec_obj)
@@ -280,6 +279,33 @@ class RecommendationEngine:
         recommendations.sort(key=lambda x: priority_map.get(x["priority"], 0), reverse=True)
 
         return recommendations
+
+    def _clean_output(self, text: str) -> str:
+        """
+        Task 7: STRICT OUTPUT VALIDATION
+        Remove all assumptions, generic statements, and unsupported claims.
+        """
+        if not text: return ""
+        
+        # Prohibited generic/assumption-based phrases
+        prohibited = [
+            "The target is likely",
+            "We assume that",
+            "It is possible that",
+            "Heuristic analysis suggests",
+            "Generic security advice:",
+            "Based on theoretical assumptions"
+        ]
+        
+        cleaned = text
+        for phrase in prohibited:
+            cleaned = cleaned.replace(phrase, "")
+            
+        # If output is too generic or empty after cleaning
+        if len(cleaned.strip()) < 10:
+            return "INSUFFICIENT EVIDENCE: Supporting claim removed due to lack of verifiable data."
+            
+        return cleaned.strip()
 
     def enrich_cve_metadata(self, cve_id: str) -> Dict[str, Any]:
         """

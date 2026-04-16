@@ -321,6 +321,23 @@ class NVDApiClient:
                         cwe_list.append(desc.get("value", ""))
             cwe = ", ".join(cwe_list) if cwe_list else "N/A"
             
+            # Extract affected version ranges from configurations
+            affected_versions = []
+            configurations = cve_item.get("configurations", [])
+            for config in configurations:
+                for node in config.get("nodes", []):
+                    for cpe_match in node.get("cpeMatch", []):
+                        if cpe_match.get("vulnerable"):
+                            range_info = {
+                                "start_inc": cpe_match.get("versionStartIncluding"),
+                                "start_exc": cpe_match.get("versionStartExcluding"),
+                                "end_inc": cpe_match.get("versionEndIncluding"),
+                                "end_exc": cpe_match.get("versionEndExcluding")
+                            }
+                            # Only add if at least one boundary is defined
+                            if any(range_info.values()):
+                                affected_versions.append(range_info)
+
             cve_records.append({
                 "cve_id": cve_id,
                 "description": description,
@@ -328,6 +345,7 @@ class NVDApiClient:
                 "severity": severity,
                 "cvss_score": cvss_score,
                 "cwe": cwe,
+                "affected_versions": affected_versions,
                 "attack_vector": attack_vector,
                 "attack_complexity": attack_complexity,
                 "references": references

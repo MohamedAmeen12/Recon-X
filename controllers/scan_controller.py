@@ -227,10 +227,16 @@ def scan_domain():
                 if live_subdomains:
                     subdomains_data = []
                     for sub_doc in live_subdomains[:5]:
+                        # Task 2.1: Hard Gate - No ports = No tech assignment
+                        open_ports = sub_doc.get("open_ports", [])
+                        if not open_ports:
+                            print(f"[Model 3] Skip {sub_doc.get('subdomain')} — Service detection not verified (no open ports)")
+                            continue
+
                         subdomains_data.append({
                             "subdomain": sub_doc.get("subdomain"),
                             "url": f"http://{sub_doc.get('subdomain')}",
-                            "nmap_data": None,
+                            "nmap_data": {"ports": open_ports},
                             "ip": sub_doc.get("ip")
                         })
 

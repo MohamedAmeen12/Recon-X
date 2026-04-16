@@ -41,7 +41,7 @@ def extract_technologies_from_headers(headers_info):
                 "name": name,
                 "version": version,
                 "category": "Web Server",
-                "source": "HTTP-Header-Server"
+                "source": "Inferred via application-layer response"
             })
     
     # X-Powered-By header
@@ -55,7 +55,7 @@ def extract_technologies_from_headers(headers_info):
                 "name": name,
                 "version": version,
                 "category": "Framework",
-                "source": "HTTP-Header-X-Powered-By"
+                "source": "Inferred via application-layer response"
             })
     
     # X-PHP-Version
@@ -65,7 +65,7 @@ def extract_technologies_from_headers(headers_info):
             "name": "PHP",
             "version": php_version.strip(),
             "category": "Language",
-            "source": "HTTP-Header-X-PHP-Version"
+            "source": "Inferred via application-layer response"
         })
     
     # X-AspNet-Version
@@ -75,7 +75,7 @@ def extract_technologies_from_headers(headers_info):
             "name": "ASP.NET",
             "version": aspnet.strip(),
             "category": "Framework",
-            "source": "HTTP-Header-X-AspNet-Version"
+            "source": "Inferred via application-layer response"
         })
     
     return technologies

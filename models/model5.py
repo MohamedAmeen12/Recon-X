@@ -254,7 +254,7 @@ class ExploitationStrategyGenerator:
                 # --- STEP 2: GENERATE CONTENT BASED ON EVIDENCE ---
                 
                 if has_exploit_evidence:
-                    # CASE A: EXPLOIT EXISTS -> GENERATE CHAIN
+                    # CASE A: EXPLOIT EXISTS -> GENERATE CHAIN (Task 3)
                     raw_chain = self._build_attack_chain(cwe_id, tech_name)
                     
                     # Post-processing: Remove consecutive duplicates
@@ -262,23 +262,20 @@ class ExploitationStrategyGenerator:
                     for step in raw_chain[1:]:
                         if step != chain[-1]:
                             chain.append(step)
-                    
-                    # Q-Learning: Only learn from verified paths
-                    if len(chain) >= 2:
-                        for i in range(len(chain) - 1):
-                            self.q_agent.update(chain[i], chain[i+1], cwe_id, reward=cvss)
                             
                     mitre_tech = self._map_mitre(chain)
-                    explanation = self._generate_explanation(chain, cwe_id)
+                    if not mitre_tech or mitre_tech == "N/A":
+                        mitre_tech = "No MITRE mapping available"  # Task 5 Rule 3
+
+                    explanation = "Theoretical attack path based on documented exploit"  # Task 3 Rule 2.1
                     status = "Public Exploit Available"
                     
                 else:
-                    # CASE B: NO EXPLOIT -> NO CHAIN (STRICT)
-                    chain = None  # Explicitly None
-                    mitre_tech = "N/A"
-                    explanation = "No verifiable public exploit exists; exploitation path cannot be determined."
+                    # CASE B: NO EXPLOIT -> NO CHAIN (STRICT TASK 3)
+                    chain = None
+                    mitre_tech = "No MITRE mapping available" # Task 5
+                    explanation = "No verified public exploit — exploitation path undetermined" # Task 3 Rule 3
                     status = "No Public Exploit Evidence"
-                    # Q-Learning is SKIPPED completely
 
                 # --- PORT DEDUPLICATION FIX ---
                 # Extract unique ports from scan results
