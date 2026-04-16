@@ -66,6 +66,52 @@ if os.environ.get("WERKZEUG_RUN_MAIN") == "true" or not app.debug:
     connect_mongodb()
 
 # ====================================================
+# GLOBAL SECURITY HOOK (CLOSED-BY-DEFAULT)
+# ====================================================
+from flask import session, redirect, url_for, request, jsonify
+
+@app.before_request
+def enforce_strict_auth():
+    """
+    Enforces authentication across ALL routes unless explicitly whitelisted.
+    This ensures that new routes are secure by default.
+    """
+    # ── 1. Define Public Whitelist ──
+    # Routes that do NOT require authentication
+    whitelist = [
+        'auth.login',
+        'auth.signup',
+        'auth.auth_status',  # Needed for frontend guard
+        'auth.forgot_password',
+        'auth.reset_password',
+        'views.login_page',
+        'views.signup_page',
+        'views.index',
+        'views.forgot_password_page',
+        'static'
+    ]
+
+    # Normalize current endpoint
+    endpoint = request.endpoint
+    
+    # ── 2. Allow Whitelisted Routes ──
+    if endpoint in whitelist or (endpoint and endpoint.startswith('static')):
+        return None
+
+    # ── 3. Check Authentication ──
+    if not session.get("user_id"):
+        logger.warning(f"BLOCKED: Unauthenticated access to {request.path} [Endpoint: {endpoint}]")
+        
+        # Detect API/JSON requests
+        if request.headers.get('Accept') == 'application/json' or \
+           request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({"error": "Authentication required", "status": "unauthenticated"}), 401
+            
+        return redirect(url_for("views.login_page"))
+
+    return None
+
+# ====================================================
 # REGISTER BLUEPRINTS (CONTROLLERS)
 # ====================================================
 from controllers.view_controller import view_bp

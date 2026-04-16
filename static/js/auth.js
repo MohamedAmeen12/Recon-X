@@ -7,7 +7,9 @@ async function logout() {
             }
         });
 
-        // Always redirect to login, even if server returns error
+        // Always redirect and clear storage
+        localStorage.clear();
+        sessionStorage.clear();
         window.location.href = '/login';
     } catch (error) {
         console.error('Logout error:', error);

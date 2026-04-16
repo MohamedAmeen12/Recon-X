@@ -16,7 +16,13 @@ def admin_required(f):
         # Check for admin role
         if session.get("role") != "admin":
             logger.warning(f"Non-admin access attempt to {request.path} by {session.get('email')}")
-            return jsonify({"error": "Unauthorized. Admin role required."}), 403
+            
+            # Detect JSON/AJAX requests
+            if request.headers.get('Accept') == 'application/json' or \
+               request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                return jsonify({"error": "Unauthorized. Admin role required.", "status": "forbidden"}), 403
+                
+            return redirect(url_for("views.unauthorized_page"))
 
         return f(*args, **kwargs)
     return decorated

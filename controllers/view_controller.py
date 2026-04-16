@@ -90,3 +90,7 @@ def audit_logs_page():
 @admin_required
 def user_edit_page():
     return render_template("admin/user_edit.html")
+
+@view_bp.route("/unauthorized")
+def unauthorized_page():
+    return render_template("unauthorized.html")

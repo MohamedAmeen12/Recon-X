@@ -725,3 +725,14 @@ def forgot_password_reset_password():
     )
 
     return jsonify({'success': True, 'message': 'Password reset successfully. You may now log in.'}), 200
+@auth_bp.route("/auth/status", methods=["GET"])
+def auth_status():
+    """Returns the current authentication status for the frontend guard."""
+    if session.get("user_id"):
+        return jsonify({
+            "logged_in": True,
+            "user_id": session.get("user_id"),
+            "role": session.get("role", "user"),
+            "email": session.get("email")
+        }), 200
+    return jsonify({"logged_in": false}), 200

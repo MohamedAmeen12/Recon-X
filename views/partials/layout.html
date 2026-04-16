@@ -15,6 +15,41 @@
         document.documentElement.classList.remove('dark', 'dark-mode');
       }
     })();
+    
+    // 🛡️ FRONTEND SECURITY GUARD
+    const checkAuthStatus = async () => {
+      try {
+        const response = await fetch('/auth/status');
+        const data = await response.json();
+        
+        if (!data.logged_in) {
+          window.location.href = '/login';
+          return;
+        }
+
+        // Role-based protection for Admin routes
+        if (window.location.pathname.startsWith('/admin') && data.role !== 'admin') {
+          window.location.href = '/unauthorized';
+          return;
+        }
+
+        // Success: Show the UI
+        document.body.style.opacity = '1';
+        document.body.style.visibility = 'visible';
+        
+        // Populate global user data
+        if (document.getElementById('usernamDisplay')) {
+          document.getElementById('usernamDisplay').textContent = data.email.split('@')[0];
+        }
+      } catch (err) {
+        console.error("Auth Guard Error:", err);
+        // On network error, we stay hidden or redirect
+      }
+    };
+    
+    // Apply immediate lock before body renders
+    document.write('<style>body { opacity: 0; visibility: hidden; }</style>');
+    window.addEventListener('DOMContentLoaded', checkAuthStatus);
   </script>
   
   <script src="https://cdn.tailwindcss.com"></script>
