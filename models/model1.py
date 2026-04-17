@@ -157,6 +157,11 @@ def run_subdomain_discovery(domain):
             print(f"Error: {sublist3r_result.get('error')}")
         subdomains = []
 
+    # ── ROOT DOMAIN INJECTION ──
+    if domain not in subdomains:
+        subdomains.insert(0, domain)
+    # ───────────────────────────
+
     if not subdomains:
         return {
             "total_candidates": 0,
@@ -209,6 +214,7 @@ def run_subdomain_discovery(domain):
         
         doc = {
             "subdomain": sub,
+            "is_root": (sub == domain),
             "open_ports": sub_ports,  # Ports scanned from this subdomain's IP
             "ip": sub_ip if sub_ip else "Unresolved",
             "live_http": sub in live_http,

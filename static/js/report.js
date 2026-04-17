@@ -262,6 +262,8 @@ document.addEventListener("DOMContentLoaded", async () => {
           </h2>
           <div class="space-y-4">
             ${r.technology_fingerprints.map(t => {
+              const domainRoot = t.subdomain;
+              const isPrimary = t.is_root || false;
         let hasCVEs = false;
         const techTags = t.technologies.map(tech => {
           if (tech.cves && tech.cves.length > 0) hasCVEs = true;
@@ -307,10 +309,11 @@ document.addEventListener("DOMContentLoaded", async () => {
         ` : `<div class="mt-3 text-sm text-gray-500 dark:text-gray-400 italic px-1"><i class="ph ph-check-circle text-green-500 mr-1"></i> No known vulnerabilities detected for this stack.</div>`;
 
         return `
-          <div class="glass-card p-5 relative overflow-hidden">
+          <div class="glass-card p-5 relative overflow-hidden ${isPrimary ? 'ring-2 ring-purple-500/30' : ''}">
             <div class="absolute left-0 top-0 bottom-0 w-1 ${hasCVEs ? 'bg-red-500' : 'bg-green-500'}"></div>
             <div class="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-3 px-2">
               <div>
+                ${isPrimary ? '<span class="text-[9px] font-bold text-purple-600 dark:text-purple-400 uppercase tracking-tighter mb-0.5 block">Primary Target</span>' : ''}
                 <h4 class="text-lg font-bold text-gray-800 dark:text-white break-all">${t.url || "Unknown URL"}</h4>
                 <div class="flex items-center gap-2 mt-1">
                    ${hasCVEs ? '<span class="text-xs font-medium text-red-500 flex items-center bg-red-500/10 px-2 py-0.5 rounded"><i class="ph-fill ph-warning-circle mr-1"></i> Vulnerable</span>' : '<span class="text-xs font-medium text-green-500 flex items-center bg-green-500/10 px-2 py-0.5 rounded"><i class="ph-fill ph-check-circle mr-1"></i> Secure</span>'}
@@ -364,9 +367,12 @@ document.addEventListener("DOMContentLoaded", async () => {
               ` : `<div class="text-xs text-gray-400 italic px-1"><i class="ph-fill ph-shield-check text-green-500"></i> No suspicious patterns detected.</div>`);
 
               return `
-                <div class="glass-card p-4 transition-transform hover:-translate-y-1">
+                <div class="glass-card p-4 transition-transform hover:-translate-y-1 ${res.is_root ? 'ring-2 ring-blue-500/30' : ''}">
                   <div class="flex justify-between items-start mb-2">
-                    <h4 class="font-mono text-sm font-bold truncate max-w-[70%]" title="${a.subdomain}">${a.subdomain}</h4>
+                    <div class="flex flex-col">
+                        ${res.is_root ? '<span class="text-[9px] font-bold text-blue-500 uppercase tracking-tighter mb-0.5">Primary Target</span>' : ''}
+                        <h4 class="font-mono text-sm font-bold truncate max-w-[150px]" title="${a.subdomain}">${a.subdomain}</h4>
+                    </div>
                     <span class="badge ${isAnom ? 'bg-red-500/10 text-red-500 border border-red-500/20' : 'bg-green-500/10 text-green-500 border border-green-500/20'} px-2 py-0.5 rounded text-[10px] font-bold uppercase">${res.status || "Unknown"}</span>
                   </div>
                   ${metrics}

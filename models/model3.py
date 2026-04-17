@@ -212,6 +212,7 @@ def run_technology_fingerprinting(urls_data):
     
     for url_info in urls_data:
         url = url_info.get("url")
+        is_root = url_info.get("is_root", False)
         nmap_data = url_info.get("nmap_data")
         whatweb_result = url_info.get("whatweb_result")
         
@@ -257,6 +258,7 @@ def run_technology_fingerprinting(urls_data):
         
         results.append({
             "url": url,
+            "is_root": is_root,
             "technologies": tech_results,
             "vulnerable_count": sum(1 for t in tech_results if t["vulnerability_status"] == "vulnerable"),
             "safe_count": sum(1 for t in tech_results if t["vulnerability_status"] == "safe")
@@ -274,6 +276,7 @@ def run_technology_fingerprinting_for_subdomains(subdomains_data):
         url = sub_data.get("url") or f"http://{sub_data.get('subdomain', '')}"
         urls_data.append({
             "url": url,
+            "is_root": sub_data.get("is_root", False),
             "nmap_data": sub_data.get("nmap_data"),
             "whatweb_result": None
         })

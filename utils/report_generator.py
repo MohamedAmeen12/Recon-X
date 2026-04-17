@@ -317,6 +317,9 @@ def generate_html_report(scan_results, domain, username, scan_id):
             <p style="margin-bottom: 20pt; color: #6b7280;">Extracted tech stacks and vulnerability classification.</p>
             {% for t in tech_fingerprints %}
             <div class="glass-card">
+                {% if t.is_root or t.subdomain == domain %}
+                <span style="background: #3b82f6; color: white; padding: 1pt 4pt; border-radius: 3pt; font-size: 6.5pt; font-weight: bold; float: right; margin-bottom: 5pt;">PRIMARY TARGET</span>
+                {% endif %}
                 <span class="card-title" style="color: #3b82f6;">{{ t.url }}</span>
                 <table>
                     <thead>
@@ -359,6 +362,9 @@ def generate_html_report(scan_results, domain, username, scan_id):
                 {% for a in anomalies %}
                 <div class="anomaly-grid">
                     <div class="glass-card" style="border-left: 4pt solid {% if a.model4_result.status == 'suspicious' %}#ef4444{% else %}#10b981{% endif %};">
+                        {% if a.is_root or a.subdomain == domain %}
+                        <span style="background: #3b82f6; color: white; padding: 1pt 4pt; border-radius: 3pt; font-size: 6.5pt; font-weight: bold; float: right; margin-bottom: 5pt;">PRIMARY TARGET</span>
+                        {% endif %}
                         <span class="card-title" style="font-size: 9pt; word-break: break-all;">{{ a.subdomain }}</span>
                         <div style="font-size: 8pt; color: #6b7280; margin-bottom: 5pt;">
                             Status: <b style="color: {% if a.model4_result.status == 'suspicious' %}#ef4444{% else %}#10b981{% endif %}; border: 1px solid {% if a.model4_result.status == 'suspicious' %}#ef4444{% else %}#10b981{% endif %}; padding: 1pt 3pt; border-radius: 3pt;">{{ a.model4_result.status|upper }}</b>
@@ -435,7 +441,12 @@ def generate_html_report(scan_results, domain, username, scan_id):
                 <tbody>
                     {% for v in vulns_m6 %}
                     <tr>
-                        <td style="font-weight: 700; color: #3b82f6; font-family: monospace;">{{ v.cve_id or 'N/A' }}</td>
+                        <td style="font-weight: 700; color: #3b82f6; font-family: monospace;">
+                            {% if v.subdomain == domain or v.is_root %}
+                            <small style="background: #3b82f6; color: white; padding: 0pt 2pt; border-radius: 2pt; font-size: 6pt; vertical-align: middle; margin-right: 2pt;">PRIMARY</small>
+                            {% endif %}
+                            {{ v.cve_id or 'N/A' }}
+                        </td>
                         <td>{{ v.service or v.service_name or 'System' }}</td>
                         <td>{{ v.port or v.port_number or 'N/A' }}</td>
                         <td><b>{{ v.cvss or v.cvss_score or 'N/A' }}</b></td>

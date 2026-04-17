@@ -153,6 +153,11 @@ def scan_domain():
             sub for sub in result.get("raw_docs", [])
             if sub.get("subdomain")
         ]
+        
+        # ── ROOT PRIORITIZATION ──
+        # Ensure root domain is ALWAYS at index 0
+        targets.sort(key=lambda x: x.get("is_root", False), reverse=True)
+        # ─────────────────────────
 
         for sub in targets[:5]:
             try:
@@ -176,6 +181,7 @@ def scan_domain():
                 anomaly_doc = {
                     "domain": domain,
                     "subdomain": subdomain,
+                    "is_root": sub.get("is_root", False),
                     "url": url,
                     "status": anomaly_result.get("status"),
                     "anomaly_score": anomaly_result.get("anomaly_score"),
@@ -213,6 +219,10 @@ def scan_domain():
                     sub for sub in result.get("raw_docs", [])
                     if sub.get("live_http")
                 ]
+                
+                # ── ROOT PRIORITIZATION (TECH) ──
+                live_subdomains.sort(key=lambda x: x.get("is_root", False), reverse=True)
+                # ────────────────────────────────
 
                 # ── Fallback: if HTTP probing found nothing live, use all
                 # resolved subdomains so Model 3 still has targets to check.
@@ -235,6 +245,7 @@ def scan_domain():
 
                         subdomains_data.append({
                             "subdomain": sub_doc.get("subdomain"),
+                            "is_root": sub_doc.get("is_root", False),
                             "url": f"http://{sub_doc.get('subdomain')}",
                             "nmap_data": {"ports": open_ports},
                             "ip": sub_doc.get("ip")
@@ -259,6 +270,7 @@ def scan_domain():
                             tech_update = {
                                     "domain": domain,
                                     "subdomain": subdomain,
+                                    "is_root": tech_result.get("is_root", False),
                                     "url": url,
                                     "technology": tech.get("technology"),
                                     "version": tech.get("version"),
