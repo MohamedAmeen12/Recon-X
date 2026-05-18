@@ -1,0 +1,49 @@
+# Added by code-review-graph
+.code-review-graph/
+
+# Environment / secrets — NEVER commit
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Large saved models (outside artifacts/)
+saved_models/
+
+# Claude Code editor files (contain local absolute paths)
+.claude/
+.mcp.json
+
+# Generated report output
+reports/
+test.html
+test.pdf
