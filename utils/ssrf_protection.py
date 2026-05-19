@@ -41,6 +41,11 @@ def is_safe_target(domain: str) -> tuple:
     Returns:
         (is_safe: bool, reason: str)
     """
+    # Check if LAB/DEV mode is enabled
+    from utils.domain_validator import is_lab_mode_enabled
+    if is_lab_mode_enabled():
+        return True, "OK"
+
     domain = domain.strip().lower()
 
     # 1. Blocked hostnames

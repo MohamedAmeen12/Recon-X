@@ -98,7 +98,15 @@ def enforce_strict_auth():
     if endpoint in whitelist or (endpoint and endpoint.startswith('static')):
         return None
 
-    # ── 3. Check Authentication ──
+    # ── 3. CLI Lab Mode Bypass ──
+    from utils.domain_validator import is_lab_mode_enabled
+    if is_lab_mode_enabled() and request.headers.get("X-CLI-Bypass") == "reconx_cli_mode":
+        # Create a dummy admin session for the CLI
+        session["user_id"] = "cli_dummy_user_id"
+        session["role"] = "admin"
+        session["username"] = "admin"
+
+    # ── 4. Check Authentication ──
     if not session.get("user_id"):
         logger.warning(f"BLOCKED: Unauthenticated access to {request.path} [Endpoint: {endpoint}]")
         

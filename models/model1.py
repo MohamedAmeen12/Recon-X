@@ -42,7 +42,7 @@ def resolve_subdomains(subdomains, max_workers=50):
 def _check_single_http(subdomain):
     """Check if a single subdomain has live HTTP service."""
     try:
-        response = requests.get(f"http://{subdomain}", timeout=5)
+        response = requests.get(f"http://{subdomain}", timeout=15)
         if response.status_code < 400:
             return subdomain
     except requests.RequestException:
@@ -113,7 +113,7 @@ def _check_single_dead(subdomain):
     urls = [f"http://{subdomain}", f"https://{subdomain}"]
     for url in urls:
         try:
-            r = requests.get(url, timeout=5)
+            r = requests.get(url, timeout=15)
             if r.status_code < 400:
                 return (subdomain, False)  # Alive
         except:
@@ -143,24 +143,37 @@ def run_subdomain_discovery(domain):
     """
     start_time = time.time()
 
-    # Step 1: Start sublist3r in background (non-blocking - returns immediately!)
-    sublist3r_future = run_sublist3r(domain)
-    
-    # Get the result when ready (this will wait, but sublist3r is already running)
-    sublist3r_result = get_sublist3r_result(sublist3r_future, timeout=300)
-    
-    if sublist3r_result.get("status") == "success":
-        subdomains = sublist3r_result.get("subdomains", [])
-    else:
-        print(f"Sublist3r status: {sublist3r_result.get('status')}")
-        if sublist3r_result.get("status") == "error":
-            print(f"Error: {sublist3r_result.get('error')}")
-        subdomains = []
+    # Step 0: Check if the domain is actually a raw IP address or if Lab Mode is enabled
+    from utils.domain_validator import is_lab_mode_enabled
+    import ipaddress
+    is_ip = False
+    try:
+        ipaddress.ip_address(domain)
+        is_ip = True
+    except ValueError:
+        pass
 
-    # ── ROOT DOMAIN INJECTION ──
-    if domain not in subdomains:
-        subdomains.insert(0, domain)
-    # ───────────────────────────
+    if is_ip or is_lab_mode_enabled():
+        subdomains = [domain]
+    else:
+        # Step 1: Start sublist3r in background (non-blocking - returns immediately!)
+        sublist3r_future = run_sublist3r(domain)
+        
+        # Get the result when ready (this will wait, but sublist3r is already running)
+        sublist3r_result = get_sublist3r_result(sublist3r_future, timeout=300)
+        
+        if sublist3r_result.get("status") == "success":
+            subdomains = sublist3r_result.get("subdomains", [])
+        else:
+            print(f"Sublist3r status: {sublist3r_result.get('status')}")
+            if sublist3r_result.get("status") == "error":
+                print(f"Error: {sublist3r_result.get('error')}")
+            subdomains = []
+
+        # ── ROOT DOMAIN INJECTION ──
+        if domain not in subdomains:
+            subdomains.insert(0, domain)
+        # ───────────────────────────
 
     if not subdomains:
         return {

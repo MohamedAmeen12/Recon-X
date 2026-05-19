@@ -15,7 +15,7 @@ from typing import Dict, List, Tuple, Optional
 from models.ai_port_service.model_inference import get_predict_service
 
 DEFAULT_PORTS_TO_SCAN = [
-    80, 443, 21, 22, 25, 53, 110, 143, 3306, 8080, 8443, 3389, 5432, 27017, 6379, 9200
+    80, 443, 21, 22, 25, 53, 110, 143, 3000, 3306, 8080, 8081, 8443, 3389, 5432, 27017, 6379, 9200
 ]
 
 

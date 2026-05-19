@@ -167,8 +167,12 @@ def scan_domain():
                 # --- MULTI-MODEL COLLECTION ---
                 # Run HTTP Analysis and Traffic Capture in Parallel
                 with ThreadPoolExecutor(max_workers=2) as coll_exec:
-                    http_future = coll_exec.submit(collect_http_features, url)
                     traffic_future = coll_exec.submit(capture_traffic, subdomain, duration=3)
+                    
+                    # Allow scapy sniff to initialize before making the HTTP request
+                    time.sleep(1) 
+                    
+                    http_future = coll_exec.submit(collect_http_features, url)
                     
                     features = http_future.result()
                     traffic_features = traffic_future.result()
@@ -258,7 +262,7 @@ def scan_domain():
                     )
 
                     try:
-                        tech_results = future.result(timeout=30)
+                        tech_results = future.result(timeout=300) # Increased for Active Validation
                     except FutureTimeoutError:
                         tech_results = []
 
@@ -277,6 +281,9 @@ def scan_domain():
                                     "category": tech.get("category"),
                                     "source": tech.get("source"),
                                     "vulnerability_status": tech.get("vulnerability_status"),
+                                    "verified_vulnerabilities": tech.get("verified_vulnerabilities", []),
+                                    "unverified_vulnerabilities": tech.get("unverified_vulnerabilities", []),
+                                    "cves": tech.get("cves", []),
                                     "confidence": tech.get("confidence"),
                                     "max_cvss": tech.get("max_cvss"),
                                     "similarity_score": tech.get("similarity_score"),
@@ -388,6 +395,7 @@ def scan_domain():
                             "cvss_score": float(cve.get("cvss", 0.0)),
                             "exploit_available": 1 if tech.get("source") == "ExploitDB" else 0,
                             "cve_id": cve.get("cve"),
+                            "validation_status": cve.get("validation_status"),
                             "technology_stack": tech.get("technology"),
                             "is_public_port": 1,
                             "anomaly_flag": 1 if anomaly_data.get("status") == "suspicious" else 0,

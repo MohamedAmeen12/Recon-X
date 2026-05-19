@@ -1,5 +1,22 @@
 import re
+import os
+import ipaddress
 from typing import Iterable, List, Union
+
+
+def is_lab_mode_enabled() -> bool:
+    """
+    Check if development or lab scanning mode is enabled in the configuration.
+    This bypass is only for controlled lab/development environments.
+    """
+    try:
+        from dotenv import load_dotenv
+        load_dotenv()
+    except ImportError:
+        pass
+    dev_mode = os.getenv("DEV_MODE", "").strip().lower() == "true"
+    enable_lab = os.getenv("ENABLE_LAB_SCANNING", "").strip().lower() == "true"
+    return dev_mode or enable_lab
 
 
 DOMAIN_REGEX = re.compile(
@@ -9,7 +26,7 @@ DOMAIN_REGEX = re.compile(
 
 def is_valid_domain(domain: str) -> bool:
     """
-    Return True if the given string looks like a valid domain.
+    Return True if the given string looks like a valid domain or IP/localhost in lab mode.
     Supports subdomains like 'sub.example.com'.
     """
     if not isinstance(domain, str):
@@ -17,7 +34,23 @@ def is_valid_domain(domain: str) -> bool:
     domain = domain.strip().lower()
     if not domain:
         return False
+
+    if is_lab_mode_enabled():
+        if domain == "localhost" or domain.endswith(".local") or domain.endswith(".lab") or domain.endswith(".lan"):
+            return True
+        try:
+            ipaddress.ip_address(domain)
+            return True
+        except ValueError:
+            pass
+        try:
+            ipaddress.ip_network(domain, strict=False)
+            return True
+        except ValueError:
+            pass
+
     return bool(DOMAIN_REGEX.match(domain))
+
 
 
 def _split_raw_domains(raw: str) -> List[str]:
@@ -68,11 +101,29 @@ def is_domain_allowed(target: str, primary_domain: str) -> bool:
     """
     Core Scoping Logic:
     Allows exact matches or strict subdomains of the verified apex.
+    In LAB/DEV Mode, also allows target IPs/domains matching allowed CIDR networks.
     """
     if not primary_domain:
         return False
     target = target.strip().lower()
     primary = primary_domain.strip().lower()
+
+    if is_lab_mode_enabled():
+        # Allow loopback/localhost targets
+        if target in ["127.0.0.1", "::1", "localhost", "localhost.localdomain"]:
+            return True
+        # Check if primary_domain is a CIDR block and target is an IP
+        try:
+            net = ipaddress.ip_network(primary, strict=False)
+            try:
+                ip = ipaddress.ip_address(target)
+                if ip in net:
+                    return True
+            except ValueError:
+                pass
+        except ValueError:
+            pass
+
     return target == primary or target.endswith("." + primary)
 
 def is_allowed(target: str, user_doc: dict) -> bool:

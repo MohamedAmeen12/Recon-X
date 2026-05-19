@@ -46,6 +46,8 @@ def collect_http_features(url: str) -> dict:
     """
     Sends real HTTP request and extracts behavior features
     """
+    if not url.startswith('http://') and not url.startswith('https://'):
+        url = f"http://{url}"
 
     try:
         response = requests.get(

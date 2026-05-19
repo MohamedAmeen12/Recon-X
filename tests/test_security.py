@@ -53,5 +53,38 @@ class SecurityTestCase(unittest.TestCase):
         
         self.assertTrue(limit_reached, "Rate limit (429) was not triggered after 15 attempts")
 
+    def test_lab_mode_bypass(self):
+        """Verify that lab mode allows CLI bypass and private IP/domain validation skips."""
+        import os
+        from utils.domain_validator import is_lab_mode_enabled, is_valid_domain, is_domain_allowed
+        from utils.ssrf_protection import is_safe_target
+
+        # 1. Enable Lab Mode and test validator/ssrf skips
+        os.environ["ENABLE_LAB_SCANNING"] = "true"
+        self.assertTrue(is_lab_mode_enabled())
+        self.assertTrue(is_valid_domain("172.22.169.150"))
+        self.assertTrue(is_valid_domain("localhost"))
+        self.assertTrue(is_valid_domain("app.reconx.local"))
+        self.assertTrue(is_domain_allowed("172.22.169.150", "172.22.169.0/24"))
+        
+        safe, reason = is_safe_target("172.22.169.150")
+        self.assertTrue(safe)
+
+        # Test auth bypass with X-CLI-Bypass header
+        headers = {"X-CLI-Bypass": "reconx_cli_mode", "Content-Type": "application/json"}
+        # Send scan request for empty domain (to trigger bad format error rather than 401/403 error)
+        res = self.app.post('/scan_domain', json={"domain": ""}, headers=headers)
+        # It should return 400 Bad Request (domain required) instead of 401 Unauthorized
+        self.assertEqual(res.status_code, 400)
+
+        # 2. Disable Lab Mode and verify it defaults back to secure mode
+        os.environ["ENABLE_LAB_SCANNING"] = "false"
+        os.environ["DEV_MODE"] = "false"
+        self.assertFalse(is_lab_mode_enabled())
+        
+        # Request without headers should fail with 401
+        res2 = self.app.post('/scan_domain', json={"domain": "127.0.0.1"})
+        self.assertEqual(res2.status_code, 401)
+
 if __name__ == '__main__':
     unittest.main()

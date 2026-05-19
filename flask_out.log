@@ -1,0 +1,74 @@
+[2026-05-19 13:57:05] [INFO] [config.database] Connecting to MongoDB (attempt 1)
+[2026-05-19 13:57:07] [INFO] [config.database] MongoDB connected successfully
+[2026-05-19 13:57:08] [INFO] [config.database] MongoDB indexes ensured
+DEBUG: [nvd_api_tool.py] is being loaded from: C:\Users\asm_t\Desktop\Recon-Version-2\utils\nvd_api_tool.py
+[Gemini Service] Initialized successfully with primary: gemini-2.5-flash and fallback: gemini-2.5-pro
+[2026-05-19 13:57:14] [INFO] [reconx] ============================================================
+[2026-05-19 13:57:14] [INFO] [reconx] Starting ReconX Flask Server...
+[2026-05-19 13:57:14] [INFO] [reconx] ============================================================
+[2026-05-19 13:57:14] [INFO] [reconx] Server running on: http://localhost:5000
+[2026-05-19 13:57:14] [INFO] [reconx] Access the application at:
+[2026-05-19 13:57:14] [INFO] [reconx]    Login:     http://localhost:5000/login
+[2026-05-19 13:57:14] [INFO] [reconx]    Signup:    http://localhost:5000/signup
+[2026-05-19 13:57:14] [INFO] [reconx]    Home:      http://localhost:5000/home
+[2026-05-19 13:57:14] [INFO] [reconx]    Scan:      http://localhost:5000/scan
+[2026-05-19 13:57:14] [INFO] [reconx]    Report:    http://localhost:5000/report
+[2026-05-19 13:57:14] [INFO] [reconx]    Admin:     http://localhost:5000/admin
+[2026-05-19 13:57:14] [INFO] [reconx] ============================================================
+ * Serving Flask app 'app'
+ * Debug mode: on
+[2026-05-19 13:57:15] [INFO] [config.database] Connecting to MongoDB (attempt 1)
+[2026-05-19 13:57:17] [INFO] [config.database] MongoDB connected successfully
+[2026-05-19 13:57:18] [INFO] [config.database] MongoDB indexes ensured
+DEBUG: [nvd_api_tool.py] is being loaded from: C:\Users\asm_t\Desktop\Recon-Version-2\utils\nvd_api_tool.py
+[Gemini Service] Initialized successfully with primary: gemini-2.5-flash and fallback: gemini-2.5-pro
+[2026-05-19 13:57:24] [INFO] [reconx] ============================================================
+[2026-05-19 13:57:24] [INFO] [reconx] Starting ReconX Flask Server...
+[2026-05-19 13:57:24] [INFO] [reconx] ============================================================
+[2026-05-19 13:57:24] [INFO] [reconx] Server running on: http://localhost:5000
+[2026-05-19 13:57:24] [INFO] [reconx] Access the application at:
+[2026-05-19 13:57:24] [INFO] [reconx]    Login:     http://localhost:5000/login
+[2026-05-19 13:57:24] [INFO] [reconx]    Signup:    http://localhost:5000/signup
+[2026-05-19 13:57:24] [INFO] [reconx]    Home:      http://localhost:5000/home
+[2026-05-19 13:57:24] [INFO] [reconx]    Scan:      http://localhost:5000/scan
+[2026-05-19 13:57:24] [INFO] [reconx]    Report:    http://localhost:5000/report
+[2026-05-19 13:57:24] [INFO] [reconx]    Admin:     http://localhost:5000/admin
+[2026-05-19 13:57:24] [INFO] [reconx] ============================================================
+[2026-05-19 13:57:24] [WARNING] [werkzeug]  * Debugger is active!
+[2026-05-19 13:57:24] [WARNING] [reconx] BLOCKED: Unauthenticated access to /scan_domain [Endpoint: scan.scan_domain]
+[2026-05-19 13:58:39] [INFO] [config.database] Connecting to MongoDB (attempt 1)
+[2026-05-19 13:58:42] [INFO] [config.database] MongoDB connected successfully
+[2026-05-19 13:58:45] [INFO] [config.database] MongoDB indexes ensured
+DEBUG: [nvd_api_tool.py] is being loaded from: C:\Users\asm_t\Desktop\Recon-Version-2\utils\nvd_api_tool.py
+[Gemini Service] Initialized successfully with primary: gemini-2.5-flash and fallback: gemini-2.5-pro
+[2026-05-19 13:58:52] [INFO] [reconx] ============================================================
+[2026-05-19 13:58:52] [INFO] [reconx] Starting ReconX Flask Server...
+[2026-05-19 13:58:52] [INFO] [reconx] ============================================================
+[2026-05-19 13:58:52] [INFO] [reconx] Server running on: http://localhost:5000
+[2026-05-19 13:58:52] [INFO] [reconx] Access the application at:
+[2026-05-19 13:58:52] [INFO] [reconx]    Login:     http://localhost:5000/login
+[2026-05-19 13:58:52] [INFO] [reconx]    Signup:    http://localhost:5000/signup
+[2026-05-19 13:58:52] [INFO] [reconx]    Home:      http://localhost:5000/home
+[2026-05-19 13:58:52] [INFO] [reconx]    Scan:      http://localhost:5000/scan
+[2026-05-19 13:58:52] [INFO] [reconx]    Report:    http://localhost:5000/report
+[2026-05-19 13:58:52] [INFO] [reconx]    Admin:     http://localhost:5000/admin
+[2026-05-19 13:58:52] [INFO] [reconx] ============================================================
+[2026-05-19 13:58:52] [WARNING] [werkzeug]  * Debugger is active!
+[2026-05-19 19:30:51] [INFO] [config.database] Connecting to MongoDB (attempt 1)
+[2026-05-19 19:30:53] [INFO] [config.database] MongoDB connected successfully
+[2026-05-19 19:30:54] [INFO] [config.database] MongoDB indexes ensured
+DEBUG: [nvd_api_tool.py] is being loaded from: C:\Users\asm_t\Desktop\Recon-Version-2\utils\nvd_api_tool.py
+[Gemini Service] Initialized successfully with primary: gemini-2.5-flash and fallback: gemini-2.5-pro
+[2026-05-19 19:31:10] [INFO] [reconx] ============================================================
+[2026-05-19 19:31:10] [INFO] [reconx] Starting ReconX Flask Server...
+[2026-05-19 19:31:10] [INFO] [reconx] ============================================================
+[2026-05-19 19:31:10] [INFO] [reconx] Server running on: http://localhost:5000
+[2026-05-19 19:31:10] [INFO] [reconx] Access the application at:
+[2026-05-19 19:31:10] [INFO] [reconx]    Login:     http://localhost:5000/login
+[2026-05-19 19:31:10] [INFO] [reconx]    Signup:    http://localhost:5000/signup
+[2026-05-19 19:31:10] [INFO] [reconx]    Home:      http://localhost:5000/home
+[2026-05-19 19:31:10] [INFO] [reconx]    Scan:      http://localhost:5000/scan
+[2026-05-19 19:31:10] [INFO] [reconx]    Report:    http://localhost:5000/report
+[2026-05-19 19:31:10] [INFO] [reconx]    Admin:     http://localhost:5000/admin
+[2026-05-19 19:31:10] [INFO] [reconx] ============================================================
+[2026-05-19 19:31:10] [WARNING] [werkzeug]  * Debugger is active!

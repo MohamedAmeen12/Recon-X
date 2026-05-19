@@ -1,0 +1,38 @@
+C:\Users\asm_t\Desktop\Recon-Version-2\utils\gemini_service.py:9: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  import google.generativeai as genai
+C:\Users\asm_t\Desktop\Recon-Version-2\utils\gemini_service.py:9: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  import google.generativeai as genai
+C:\Users\asm_t\Desktop\Recon-Version-2\utils\gemini_service.py:9: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  import google.generativeai as genai
+C:\Users\asm_t\Desktop\Recon-Version-2\controllers\report_controller.py:437: SyntaxWarning: invalid escape sequence '\P'
+  return jsonify({"error": "Failed to generate PDF. You need to ensure 'wkhtmltopdf' is installed on your operating system (C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe). Download it from wkhtmltopdf.org"}), 500
+C:\Users\asm_t\Desktop\Recon-Version-2\utils\gemini_service.py:9: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  import google.generativeai as genai

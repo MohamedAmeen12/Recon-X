@@ -13,8 +13,8 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 # Configuration
-PRIMARY_MODEL = "gemini-flash-latest"
-FALLBACK_MODEL = "gemini-pro-latest"
+PRIMARY_MODEL = "gemini-2.5-flash"
+FALLBACK_MODEL = "gemini-2.5-pro"
 
 class GeminiService:
     def __init__(self):
