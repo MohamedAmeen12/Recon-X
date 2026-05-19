@@ -13,7 +13,7 @@ from middlewares.auth_middleware import login_required
 from middlewares.admin_middleware import admin_required
 
 from models.model1 import run_subdomain_discovery
-from models.model3 import run_technology_fingerprinting_for_subdomains
+from models.model3 import run_technology_fingerprinting_for_subdomains, run_full_model3_pipeline
 from models.model4 import HTTPAnomalyModel
 from models.model5 import run_model_5
 from models.model6_vulnerability_risk import Model6RiskScorer
@@ -241,23 +241,36 @@ def scan_domain():
                 if live_subdomains:
                     subdomains_data = []
                     for sub_doc in live_subdomains[:5]:
-                        # Task 2.1: Hard Gate - No ports = No tech assignment
                         open_ports = sub_doc.get("open_ports", [])
-                        if not open_ports:
-                            print(f"[Model 3] Skip {sub_doc.get('subdomain')} — Service detection not verified (no open ports)")
+
+                        # Soft gate: prefer confirmed open ports, but if a subdomain
+                        # is HTTP-live (live_http=True) or is the root domain, allow
+                        # fingerprinting even without port scan data. Nmap SYN scans
+                        # can fail on firewalled or cloud-hosted targets, and the AI
+                        # port classifier may crash — neither should block CVE lookup.
+                        is_live = sub_doc.get("live_http") or sub_doc.get("is_root", False)
+                        if not open_ports and not is_live:
+                            print(f"[Model 3] Skip {sub_doc.get('subdomain')} — not live and no open ports confirmed")
                             continue
+
+                        # Inject a default HTTP/HTTPS port when port scan returned nothing
+                        # so fingerprint_technologies has something to probe.
+                        effective_ports = open_ports if open_ports else [
+                            {"port": 443, "service": "", "version": "", "confidence": 0.0},
+                            {"port": 80,  "service": "", "version": "", "confidence": 0.0},
+                        ]
 
                         subdomains_data.append({
                             "subdomain": sub_doc.get("subdomain"),
                             "is_root": sub_doc.get("is_root", False),
                             "url": f"http://{sub_doc.get('subdomain')}",
-                            "nmap_data": {"ports": open_ports},
+                            "nmap_data": {"ports": effective_ports},
                             "ip": sub_doc.get("ip")
                         })
 
                     executor = ThreadPoolExecutor(max_workers=1)
                     future = executor.submit(
-                        run_technology_fingerprinting_for_subdomains,
+                        run_full_model3_pipeline,  # enhanced: crawling + fingerprinting
                         subdomains_data
                     )
 
@@ -269,6 +282,31 @@ def scan_domain():
                     for tech_result in tech_results:
                         url = tech_result.get("url")
                         subdomain = url.replace("http://", "").replace("https://", "")
+
+                        # ── Persist crawling discoveries (additive) ──
+                        crawl_block = tech_result.get("crawling", {})
+                        if crawl_block.get("endpoints"):
+                            try:
+                                from config.database import crawled_endpoints_collection
+                                crawled_endpoints_collection.update_one(
+                                    {"domain": domain, "subdomain": subdomain},
+                                    {"$set": {
+                                        "domain": domain,
+                                        "subdomain": subdomain,
+                                        "url": url,
+                                        "crawl_source": crawl_block.get("crawl_source"),
+                                        "endpoint_summary": crawl_block.get("endpoint_summary", {}),
+                                        "endpoints": crawl_block.get("endpoints", [])[:200],
+                                        "parameter_inventory": crawl_block.get("parameter_inventory", {}),
+                                        "js_analysis": crawl_block.get("js_analysis", {}),
+                                        "nuclei_extended_findings": crawl_block.get("nuclei_extended_findings", []),
+                                        "pipeline_summary": crawl_block.get("pipeline_summary", {}),
+                                        "scanned_at": __import__("datetime").datetime.utcnow(),
+                                    }},
+                                    upsert=True,
+                                )
+                            except Exception as _ce:
+                                print(f"[CrawlingPersist] Non-fatal save error: {_ce}")
 
                         for tech in tech_result.get("technologies", []):
                             tech_update = {

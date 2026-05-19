@@ -33,6 +33,16 @@ def urlparse_safe(url: str) -> Dict[str, str]:
     except Exception:
         return {"host": "", "path": "/"}
 
+_GENERIC_NAMES = frozenset({"web service", "unknown", "n/a", ""})
+_GENERIC_VERSIONS = frozenset({"unknown", "n/a", ""})
+
+def _is_generic_tech(service_name: str, version: str) -> bool:
+    """Returns True when both service name and version are placeholder values."""
+    return (
+        str(service_name).lower().strip() in _GENERIC_NAMES
+        and str(version).lower().strip() in _GENERIC_VERSIONS
+    )
+
 def classify_and_segregate_findings(scan_results: Dict[str, Any], target: str) -> tuple:
     """
     Normalizes findings and splits them into web exploits, technology CVEs, and traffic anomalies.
@@ -40,47 +50,46 @@ def classify_and_segregate_findings(scan_results: Dict[str, Any], target: str) -
     web_exploits = []
     tech_cves = []
     traffic_anomalies = []
+    # Dedup key: (service_name_lower, version_lower, cve_id) — prevents generic M6 entries
+    # from blocking real fingerprint entries for the same CVE.
     seen = set()
+
+    WEB_INDICATORS = [
+        "sql injection", "sqli", "cwe-89",
+        "cross-site scripting", "xss", "cwe-79",
+        "server-side request forgery", "ssrf", "cwe-918",
+        "open redirect", "cwe-601",
+        "auth bypass", "authentication bypass", "authorization bypass", "cwe-287",
+        "file upload", "directory traversal", "command injection", "remote code execution", "rce"
+    ]
 
     # 1. Gather from Model 6 Risk Scorer Results
     model6_results = scan_results.get("model6", []) or []
     for rec in model6_results:
         cve_id = rec.get("cve_id") or "N/A"
         subdomain = rec.get("subdomain") or target
-        key = (cve_id, subdomain)
-        
-        if key in seen:
-            continue
-        seen.add(key)
 
-        title = rec.get("title") or rec.get("cve_id") or f"Vulnerability in {rec.get('service_name', 'Web Service')}"
+        service_name = str(rec.get("service_name") or rec.get("technology_stack") or "").strip()
+        technology_stack = str(rec.get("technology_stack") or rec.get("service_name") or "").strip()
+        version = str(rec.get("version") or "").strip()
+
+        title = rec.get("title") or cve_id or f"Vulnerability on {subdomain}"
         desc = rec.get("description") or ""
         cwe = rec.get("cwe_id") or rec.get("cwe") or ""
-        
-        # Check if authentic request context is present
-        has_auth_context = False
+
         headers = rec.get("headers") or rec.get("request_headers")
         body = rec.get("body") or rec.get("request_body")
         method = rec.get("method") or rec.get("request_method") or "GET"
+        has_auth_context = bool(headers and len(headers) > 0)
 
-        if headers and len(headers) > 0:
-            has_auth_context = True
-
-        # Check finding category
-        is_web = False
         text = f"{title} {cve_id} {desc} {cwe}".lower()
-        web_indicators = [
-            "sql injection", "sqli", "cwe-89",
-            "cross-site scripting", "xss", "cwe-79",
-            "server-side request forgery", "ssrf", "cwe-918",
-            "open redirect", "cwe-601",
-            "auth bypass", "authentication bypass", "authorization bypass", "cwe-287",
-            "file upload", "directory traversal", "command injection", "remote code execution", "rce"
-        ]
-        if any(ind in text for ind in web_indicators):
-            is_web = True
+        is_web = any(ind in text for ind in WEB_INDICATORS)
 
         if is_web and has_auth_context:
+            key = ("web", subdomain, cve_id)
+            if key in seen:
+                continue
+            seen.add(key)
             web_exploits.append({
                 "finding_type": "web_exploit",
                 "title": title,
@@ -100,24 +109,32 @@ def classify_and_segregate_findings(scan_results: Dict[str, Any], target: str) -
                 "references": rec.get("references") or []
             })
         else:
+            # Skip generic Model 6 fallback entries — the tech fingerprint loop will
+            # contribute the same CVE with real service/version metadata.
+            if _is_generic_tech(service_name or technology_stack, version):
+                continue
+
+            key = (service_name.lower(), version.lower(), cve_id)
+            if key in seen:
+                continue
+            seen.add(key)
+
             cvss = float(rec.get("cvss_score") or rec.get("cvss") or 0.0)
-            severity = derive_severity_from_cvss(cvss)
-            
             tech_cves.append({
                 "finding_type": "technology_cve",
                 "title": title,
-                "severity": severity,
+                "severity": derive_severity_from_cvss(cvss),
                 "target": target,
                 "host": subdomain,
-                "service_name": rec.get("service_name") or rec.get("technology_stack") or "Web Service",
-                "technology_stack": rec.get("technology_stack") or rec.get("service_name") or "Web Service",
-                "version": rec.get("version") or "Unknown",
+                "service_name": service_name or technology_stack,
+                "technology_stack": technology_stack or service_name,
+                "version": version,
                 "cve_id": cve_id,
                 "cvss_score": cvss,
                 "cwe": cwe,
                 "description": desc,
                 "impact": rec.get("impact") or "Vulnerable stack version detected.",
-                "remediation": rec.get("remediation") or "Update technology stack version.",
+                "remediation": rec.get("remediation") or "",
                 "references": rec.get("references") or []
             })
 
@@ -127,40 +144,35 @@ def classify_and_segregate_findings(scan_results: Dict[str, Any], target: str) -
         url = tech_res.get("url")
         parsed_url = urlparse_safe(url)
         subdomain = parsed_url.get("host") or target
-        
+
         for tech in tech_res.get("technologies", []) or []:
+            technology = str(tech.get("technology") or "").strip()
+            version = str(tech.get("version") or "").strip()
+
+            # Skip entries with no real technology name
+            if not technology or technology.lower() in _GENERIC_NAMES:
+                continue
+
             for cve in tech.get("cves", []) or []:
                 cve_id = cve.get("cve") or "N/A"
-                key = (cve_id, subdomain)
-                
-                if key in seen:
-                    continue
-                seen.add(key)
-                
-                title = f"Vulnerable Service: {tech.get('technology')} ({cve_id})"
+
+                title = f"Vulnerable Service: {technology} ({cve_id})"
                 desc = cve.get("description") or ""
                 cwe = cve.get("cwe") or ""
-                
-                # Check for authentic context
+
                 headers = cve.get("headers") or cve.get("request_headers")
                 body = cve.get("body") or cve.get("request_body")
                 method = cve.get("method") or cve.get("request_method") or "GET"
-                has_auth_context = headers and len(headers) > 0
+                has_auth_context = bool(headers and len(headers) > 0)
 
-                is_web = False
                 text = f"{title} {cve_id} {desc} {cwe}".lower()
-                web_indicators = [
-                    "sql injection", "sqli", "cwe-89",
-                    "cross-site scripting", "xss", "cwe-79",
-                    "server-side request forgery", "ssrf", "cwe-918",
-                    "open redirect", "cwe-601",
-                    "auth bypass", "authentication bypass", "authorization bypass", "cwe-287",
-                    "file upload", "directory traversal", "command injection", "remote code execution", "rce"
-                ]
-                if any(ind in text for ind in web_indicators):
-                    is_web = True
+                is_web = any(ind in text for ind in WEB_INDICATORS)
 
                 if is_web and has_auth_context:
+                    key = ("web", subdomain, cve_id)
+                    if key in seen:
+                        continue
+                    seen.add(key)
                     web_exploits.append({
                         "finding_type": "web_exploit",
                         "title": title,
@@ -180,24 +192,31 @@ def classify_and_segregate_findings(scan_results: Dict[str, Any], target: str) -
                         "references": cve.get("references") or []
                     })
                 else:
+                    # Only include when version is known
+                    if not version or version.lower() in _GENERIC_VERSIONS:
+                        continue
+
+                    key = (technology.lower(), version.lower(), cve_id)
+                    if key in seen:
+                        continue
+                    seen.add(key)
+
                     cvss = float(cve.get("cvss") or 0.0)
-                    severity = derive_severity_from_cvss(cvss)
-                    
                     tech_cves.append({
                         "finding_type": "technology_cve",
                         "title": title,
-                        "severity": severity,
+                        "severity": derive_severity_from_cvss(cvss),
                         "target": target,
                         "host": subdomain,
-                        "service_name": tech.get("technology") or "Web Service",
-                        "technology_stack": tech.get("technology") or "Web Service",
-                        "version": tech.get("version") or "Unknown",
+                        "service_name": technology,
+                        "technology_stack": technology,
+                        "version": version,
                         "cve_id": cve_id,
                         "cvss_score": cvss,
                         "cwe": cwe,
                         "description": desc,
                         "impact": "Exposure to known public vulnerabilities on this technology stack.",
-                        "remediation": "Upgrade component stack or disable unused services.",
+                        "remediation": "",
                         "references": cve.get("references") or []
                     })
 

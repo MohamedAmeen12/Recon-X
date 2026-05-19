@@ -92,6 +92,7 @@ vulnerabilities_collection = None
 anomalies_collection = None   # 🔥 REQUIRED
 recommendations_collection = None  # Model 7
 audit_logs_collection = None  # Audit Logs (tamper-resistant)
+crawled_endpoints_collection = None  # Model 3 crawling extension
 
 
 def connect_mongodb():
@@ -100,7 +101,7 @@ def connect_mongodb():
     global user_logs_collection, subdomains_collection
     global technologies_collection, vulnerabilities_collection
     global anomalies_collection, recommendations_collection
-    global audit_logs_collection
+    global audit_logs_collection, crawled_endpoints_collection
 
     for attempt in range(MAX_RETRIES):
         try:
@@ -128,6 +129,7 @@ def connect_mongodb():
             anomalies_collection = db["anomalies"]  # Model 4
             recommendations_collection = db["recommendations"]  # Model 7
             audit_logs_collection = db["audit_logs"]  # Audit Logs
+            crawled_endpoints_collection = db["crawled_endpoints"]  # Model 3 crawling
 
             # ── Create indexes for query performance ──
             try:
@@ -137,6 +139,7 @@ def connect_mongodb():
                 subdomains_collection.create_index([("domain", 1), ("subdomain", 1)])
                 technologies_collection.create_index([("domain", 1), ("subdomain", 1)])
                 anomalies_collection.create_index([("domain", 1), ("subdomain", 1)])
+                crawled_endpoints_collection.create_index([("domain", 1), ("subdomain", 1)])
                 audit_logs_collection.create_index([("timestamp", -1)])
                 audit_logs_collection.create_index("action")
                 logger.info("MongoDB indexes ensured")
@@ -159,7 +162,7 @@ def _init_dummy_collections():
     global user_logs_collection, subdomains_collection
     global technologies_collection, vulnerabilities_collection
     global anomalies_collection, recommendations_collection
-    global audit_logs_collection
+    global audit_logs_collection, crawled_endpoints_collection
 
     class DummyCollection:
         def find_one(self, *a, **k): return None
@@ -178,6 +181,7 @@ def _init_dummy_collections():
     anomalies_collection = DummyCollection()   # 🔥 REQUIRED
     recommendations_collection = DummyCollection()
     audit_logs_collection = DummyCollection()
+    crawled_endpoints_collection = DummyCollection()
 
 
 def is_mongodb_connected():

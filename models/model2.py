@@ -145,10 +145,13 @@ def scan_ports(ip, ports=DEFAULT_PORTS_TO_SCAN):
                         "confidence": ai_pred.get("confidence", 0.0)
                     })
         except Exception as e:
-            print(f"AI Port Classification failed: {e}")
-            # Do NOT fall back to deterministic if we fail (System should not identify any service)
-            # We return empty array as per validation criteria 
-            return []
+            print(f"AI Port Classification failed: {e} — returning raw open ports without service labels")
+            # Return raw scan results so the open_ports gate in the scan controller
+            # is not blocked by a classifier crash. Service is left blank.
+            return [
+                {"port": p["port"], "service": "", "version": "", "confidence": 0.0}
+                for p in open_ports
+            ]
 
     return final_results
 

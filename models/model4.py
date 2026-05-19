@@ -95,34 +95,83 @@ class HTTPAnomalyModel:
     # ==================================================
     def predict(self, features: dict) -> dict:
         """
-        Input: feature dictionary from http_collector
-        Output: anomaly score + label
+        Input: feature dictionary from http_collector + traffic_collector.
+        Output: anomaly score, status, signals, and justification.
+
+        Two-layer detection:
+          1. Rule-based signals (HTTP misconfigurations) — always evaluated.
+          2. Isolation Forest ML score — evaluated when the model is loaded.
+        A result is 'suspicious' if EITHER layer flags it.
         """
 
-        X = self._vectorize(features)
-        X_scaled = self.scaler.transform(X)
+        # ── Layer 1: Rule-based signals (always runs) ──
+        signals = self._signals(features)
 
-        anomaly_score = float(self.model.decision_function(X_scaled)[0])
-        prediction = self.model.predict(X_scaled)[0]  # -1 = anomaly
-        
-        status = "suspicious" if prediction == -1 else "normal"
-        
-        if status == "suspicious":
-            justification = (
-                f"Classification as 'suspicious' is mathematically driven by an Isolation Forest decision score of "
-                f"{round(anomaly_score, 4)} (below the anomaly threshold of 0.0). Feature parameters analyzed: "
-                f"packet_count={features.get('packet_count', 0)}, tcp_syn_count={features.get('tcp_syn_count', 0)}, unique_ips={features.get('unique_ips', 0)}."
-            )
+        # ── Layer 2: ML score (requires trained model) ──
+        ml_status = "normal"
+        anomaly_score = 0.0
+        ml_justification = ""
+
+        try:
+            X = self._vectorize(features)
+            X_scaled = self.scaler.transform(X)
+            anomaly_score = float(self.model.decision_function(X_scaled)[0])
+            prediction = self.model.predict(X_scaled)[0]  # -1 = anomaly
+            ml_status = "suspicious" if prediction == -1 else "normal"
+
+            if ml_status == "suspicious":
+                ml_justification = (
+                    f"Isolation Forest decision score {round(anomaly_score, 4)} is below the "
+                    f"anomaly threshold (0.0). Traffic features: "
+                    f"packet_count={features.get('packet_count', 0)}, "
+                    f"tcp_syn_count={features.get('tcp_syn_count', 0)}, "
+                    f"unique_ips={features.get('unique_ips', 0)}."
+                )
+            else:
+                ml_justification = (
+                    f"Isolation Forest decision score {round(anomaly_score, 4)} is within normal "
+                    f"baseline (above 0.0 threshold)."
+                )
+        except Exception:
+            # Model not yet trained — skip ML layer, rely on rule-based signals only.
+            ml_justification = "ML model not available — rule-based analysis only."
+
+        # ── Combine both layers ──
+        # Critical signals trigger suspicious regardless of ML score.
+        CRITICAL_PREFIXES = (
+            "CORS Policy:",
+            "Missing Security Headers: 3",
+            "Missing Security Headers: 4",
+        )
+        rule_triggered = bool(signals)
+        critical_triggered = any(
+            s.startswith(p) for s in signals for p in CRITICAL_PREFIXES
+        )
+
+        if ml_status == "suspicious" or critical_triggered:
+            status = "suspicious"
+        elif rule_triggered:
+            # 2+ non-critical signals (e.g. server exposed + insecure cookies) → suspicious
+            status = "suspicious" if len(signals) >= 2 else "normal"
         else:
-            justification = (
-                f"Traffic parameters are within normal baseline. Isolation Forest decision score of "
-                f"{round(anomaly_score, 4)} is above the threshold of 0.0."
-            )
+            status = "normal"
+
+        # ── Build justification ──
+        parts = []
+        if signals:
+            parts.append(f"Rule-based signals detected: {'; '.join(signals)}.")
+        if ml_justification:
+            parts.append(ml_justification)
+        if not parts:
+            parts.append("No anomalies detected via rule-based or ML analysis.")
+
+        justification = " ".join(parts)
 
         return {
             "model": "Model 4 - HTTP Anomaly Detection",
             "anomaly_score": round(anomaly_score, 4),
             "status": status,
+            "signals": signals,
             "justification": justification,
             "traffic_data": {
                 "packet_count": features.get("packet_count", 0),
@@ -137,15 +186,21 @@ class HTTPAnomalyModel:
     def _signals(self, features: dict) -> list:
         signals = []
 
+        missing = features.get("missing_headers", 0)
+        if missing >= 3:
+            signals.append(f"Missing Security Headers: {missing}/4 required headers absent (CSP, HSTS, X-Frame-Options, X-Content-Type-Options)")
+        elif missing >= 1:
+            signals.append(f"Missing Security Headers: {missing}/4 required security headers not set")
+
         if features.get("cors_wildcard", False):
-            signals.append("CORS Policy: Wildcard (*) detected")
+            signals.append("CORS Policy: Wildcard (*) detected — allows any origin")
 
         if features.get("server_exposed", False):
-            signals.append("Insecure Configuration: Server header disclosure")
+            signals.append("Insecure Configuration: Server version header exposed")
 
         if features.get("insecure_cookies", 0) > 0:
             count = features.get("insecure_cookies")
-            signals.append(f"Insecure Configuration: {count} cookies missing Secure/HttpOnly flags")
+            signals.append(f"Insecure Cookies: {count} cookie(s) missing Secure/HttpOnly flags")
 
         if features.get("error_rate", 0.0) >= 0.5:
             signals.append("Stability: High HTTP error rate (>= 50%)")

@@ -130,7 +130,7 @@ def lookup_cve(tech_name, version=""):
                     cves.append({
                         "cve": row["cve_id"],
                         "cvss": float(row["cvss_score"]),
-                        "description": row["description"][:200],
+                        "description": row["description"],
                         "severity": row["severity"],
                         "published_date": row["published_date"],
                         "affected_versions": row.get("affected_versions", []),
@@ -161,18 +161,28 @@ def classify_vulnerability_status(tech_name, version, cves):
             "cves": []
         }
 
-    valid_cves = []
-    
+    confirmed_cves = []
+    potential_cves = []
+
     for cve in cves:
         affected_ranges = cve.get("affected_versions", [])
-        
+
+        # No version range data from NVD — include as a potential finding rather than
+        # silently dropping it. Many real CVEs lack CPE configurations in NVD.
         if not affected_ranges:
+            cve = dict(cve)
+            cve["justification"] = (
+                f"POTENTIAL: No version range data available in NVD for this CVE. "
+                f"Detected version {version} may be affected — manual review recommended."
+            )
+            cve["affected_version_range"] = "N/A (no NVD range data)"
+            potential_cves.append(cve)
             continue
-            
+
         final_justification = "NOT AFFECTED"
         final_range = "N/A"
         matched = False
-        
+
         for r_info in affected_ranges:
             is_match, status, r_str = is_version_in_range(version, r_info)
             if is_match:
@@ -182,14 +192,18 @@ def classify_vulnerability_status(tech_name, version, cves):
                     final_justification = f"Version {version} is within affected range {r_str}"
                     break
                 else:
-                    final_justification = status # e.g. UNCERTAIN (BOUNDARY CASE)
-                    # Keep looking for a confirmed match in other ranges
-        
+                    final_justification = status
+
         if matched:
+            cve = dict(cve)
             cve["justification"] = final_justification
             cve["affected_version_range"] = final_range
-            valid_cves.append(cve)
-            
+            confirmed_cves.append(cve)
+
+    # Always include confirmed matches first, then potentials (no range data).
+    # Returning both ensures CVEs found only via keyword search are not suppressed.
+    valid_cves = confirmed_cves + potential_cves
+
     if not valid_cves:
         return {
             "status": "safe",
@@ -197,11 +211,17 @@ def classify_vulnerability_status(tech_name, version, cves):
             "reason": "No confirmed vulnerabilities for this version",
             "cves": []
         }
-        
+
+    status_label = "vulnerable" if confirmed_cves else "potential"
+    reason = (
+        f"{len(confirmed_cves)} confirmed + {len(potential_cves)} potential matches"
+        if confirmed_cves and potential_cves
+        else f"{'Confirmed' if confirmed_cves else 'Potential'} {len(valid_cves)} matches"
+    )
     return {
-        "status": "vulnerable",
-        "confidence": 1.0,
-        "reason": f"Confirmed {len(valid_cves)} matches",
+        "status": status_label,
+        "confidence": 1.0 if confirmed_cves else 0.5,
+        "reason": reason,
         "cves": valid_cves
     }
 
@@ -307,3 +327,129 @@ def run_technology_fingerprinting_for_subdomains(subdomains_data):
     
     return run_technology_fingerprinting(urls_data)
 
+
+# =============================================================================
+# ENHANCED PIPELINE — additive extension, existing functions above are unchanged
+# =============================================================================
+
+def _severity_to_cvss(severity: str) -> float:
+    """Map Nuclei severity string to approximate CVSS float."""
+    return {
+        "critical": 9.5,
+        "high": 7.5,
+        "medium": 5.0,
+        "low": 2.5,
+        "info": 0.0,
+    }.get(str(severity).lower(), 0.0)
+
+
+def run_full_model3_pipeline(subdomains_data: list) -> list:
+    """
+    Enhanced Model 3 entry point that executes:
+      1. Existing technology fingerprinting (run_technology_fingerprinting_for_subdomains)
+      2. NEW crawling pipeline (CrawlingPipeline) in parallel
+      3. Merges crawling discoveries back into the fingerprinting results
+
+    The existing function is called unchanged. This wrapper only adds data on top.
+    Falls back gracefully to the original results if the crawling pipeline errors.
+
+    Args:
+        subdomains_data: Same format accepted by run_technology_fingerprinting_for_subdomains.
+
+    Returns:
+        Enhanced list — same schema as run_technology_fingerprinting_for_subdomains output
+        with an additional "crawling" key per result dict.
+    """
+    import logging as _logging
+    _log = _logging.getLogger(__name__)
+
+    # ── Step 1: Existing fingerprinting (unchanged) ──────────────────────
+    existing_results = run_technology_fingerprinting_for_subdomains(subdomains_data)
+
+    # ── Step 2: Crawling pipeline ────────────────────────────────────────
+    crawling_results: list = []
+    try:
+        from models.crawling.pipeline import CrawlingPipeline
+        pipeline = CrawlingPipeline()
+        crawling_results = pipeline.run_for_subdomains(subdomains_data)
+    except Exception as exc:
+        _log.error(f"[Model3Enhanced] Crawling pipeline failed (non-fatal): {exc}")
+
+    if not crawling_results:
+        # Tag results with empty crawling data so callers always have the key
+        for r in existing_results:
+            r.setdefault("crawling", _empty_crawling_block())
+        return existing_results
+
+    # ── Step 3: Merge crawling discoveries into fingerprinting results ────
+    crawling_by_url = {r["url"]: r for r in crawling_results}
+
+    enhanced = []
+    for tech_result in existing_results:
+        url = tech_result.get("url", "")
+        crawl_data = crawling_by_url.get(url, {})
+
+        merged = dict(tech_result)
+        merged["crawling"] = {
+            "crawl_source":            crawl_data.get("crawl_result", {}).get("source"),
+            "endpoints":               crawl_data.get("endpoint_collection", {}).get("endpoints", []),
+            "endpoint_summary":        {
+                k: crawl_data.get("endpoint_collection", {}).get(k, 0)
+                for k in ("total", "with_params", "api_count", "high_value_count")
+            },
+            "parameter_inventory":     crawl_data.get("endpoint_collection", {}).get("parameter_inventory", {}),
+            "js_analysis":             crawl_data.get("js_analysis", {}),
+            "nuclei_extended_findings": crawl_data.get("validated_findings", []),
+            "pipeline_summary":        crawl_data.get("summary", {}),
+        }
+
+        # Inject confirmed Nuclei crawling findings as CVE-like entries so they
+        # flow through Model 6 (risk scoring) and Model 7 (recommendations).
+        # Only inject confirmed findings to avoid noise.
+        confirmed_findings = [
+            f for f in crawl_data.get("validated_findings", [])
+            if f.get("is_confirmed")
+        ]
+        if confirmed_findings and merged.get("technologies"):
+            for finding in confirmed_findings:
+                synthetic_cve = {
+                    "cve": finding.get("template_id", "NUCLEI-CRAWL-UNKNOWN"),
+                    "cvss": _severity_to_cvss(finding.get("severity", "low")),
+                    "description": finding.get("description") or finding.get("name", ""),
+                    "severity": str(finding.get("severity", "low")).upper(),
+                    "affected_versions": [],
+                    "justification": (
+                        f"Discovered via crawled endpoint ({finding.get('discovery_source', 'crawler')}). "
+                        + finding.get("confidence_explanation", "")
+                    ),
+                    "affected_version_range": "N/A",
+                    "validation_status": (
+                        "Exploitable"
+                        if finding.get("confidence_level") == "HIGH"
+                        else "Unverified"
+                    ),
+                    "source": "crawling_nuclei",
+                    "matched_at": finding.get("matched_at", ""),
+                }
+                # Append to the first technology entry (root-level finding)
+                if merged["technologies"]:
+                    first_tech = merged["technologies"][0]
+                    existing_ids = {c.get("cve") for c in first_tech.get("cves", [])}
+                    if synthetic_cve["cve"] not in existing_ids:
+                        first_tech.setdefault("cves", []).append(synthetic_cve)
+
+        enhanced.append(merged)
+
+    return enhanced
+
+
+def _empty_crawling_block() -> dict:
+    return {
+        "crawl_source": None,
+        "endpoints": [],
+        "endpoint_summary": {"total": 0, "with_params": 0, "api_count": 0, "high_value_count": 0},
+        "parameter_inventory": {},
+        "js_analysis": {},
+        "nuclei_extended_findings": [],
+        "pipeline_summary": {},
+    }

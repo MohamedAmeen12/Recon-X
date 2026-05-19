@@ -4,6 +4,10 @@ import uuid
 import datetime
 from typing import List, Dict
 
+_GENERIC_NAMES = frozenset({"web service", "unknown", "n/a", ""})
+_GENERIC_VERSIONS = frozenset({"unknown", "n/a", ""})
+
+
 def clean_dict_fields(items: List[Dict]) -> List[Dict]:
     """
     Clean lists of dicts to be fully JSON serializable, turning ObjectIds and datetimes into strings.
@@ -21,6 +25,55 @@ def clean_dict_fields(items: List[Dict]) -> List[Dict]:
         cleaned.append(clean_item)
     return cleaned
 
+
+def _clean_tech_cves(tech_cves: List[Dict]) -> List[Dict]:
+    """
+    Deduplicate, filter generic entries, and inject NVD references.
+
+    Rules applied (in order):
+    1. Skip entries where both service_name and technology_stack are generic placeholders.
+    2. Skip entries where version is unknown/missing.
+    3. Deduplicate by (service_name, version, cve_id); keep first occurrence.
+    4. Inject https://nvd.nist.gov/vuln/detail/<cve_id> as the first reference for real CVE IDs.
+    """
+    seen: set = set()
+    result: List[Dict] = []
+
+    for entry in tech_cves:
+        svc = str(entry.get("service_name") or "").lower().strip()
+        stack = str(entry.get("technology_stack") or "").lower().strip()
+        ver = str(entry.get("version") or "").lower().strip()
+        cve_id = str(entry.get("cve_id") or "").strip()
+
+        # 1. Drop generic/incomplete entries
+        name_key = svc or stack
+        if name_key in _GENERIC_NAMES:
+            continue
+        if ver in _GENERIC_VERSIONS:
+            continue
+
+        # 2. Dedup
+        dedup_key = (name_key, ver, cve_id.upper())
+        if dedup_key in seen:
+            continue
+        seen.add(dedup_key)
+
+        # 3. Work on a copy so we don't mutate the caller's data
+        entry = dict(entry)
+
+        # 4. Inject NVD reference
+        if cve_id.upper().startswith("CVE-"):
+            nvd_url = f"https://nvd.nist.gov/vuln/detail/{cve_id}"
+            refs = list(entry.get("references") or [])
+            if nvd_url not in refs:
+                refs.insert(0, nvd_url)
+            entry["references"] = refs
+
+        result.append(entry)
+
+    return result
+
+
 def generate_json_export(
     web_exploits: List[Dict],
     tech_cves: List[Dict],
@@ -29,6 +82,7 @@ def generate_json_export(
 ) -> str:
     """
     Generate structured machine-readable JSON vulnerability export separated into three distinct arrays.
+    Summary counts are computed AFTER deduplication.
     """
     scan_id = None
     all_findings = web_exploits + tech_cves + traffic_anomalies
@@ -45,10 +99,13 @@ def generate_json_export(
 
     generated_at = datetime.datetime.utcnow().isoformat() + "Z"
 
-    # Compute severity distribution
+    # Deduplicate and filter tech CVEs before anything else
+    tech_cves = _clean_tech_cves(tech_cves)
+
+    # Compute severity distribution AFTER deduplication
     severity_distribution = {"critical": 0, "high": 0, "medium": 0, "low": 0}
-    
-    def add_sev(sev_str):
+
+    def add_sev(sev_str: str) -> None:
         if not sev_str:
             return
         s = str(sev_str).lower()
@@ -92,9 +149,8 @@ def generate_json_export(
 
     filename = f"reconx_export_{scan_id}.json"
     file_path = os.path.join(reports_dir, filename)
-    
+
     with open(file_path, "w", encoding="utf-8") as f:
         json.dump(report_data, f, indent=2)
 
     return filename
-
