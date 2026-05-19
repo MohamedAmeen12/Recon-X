@@ -237,7 +237,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             <summary class="flex items-center justify-between px-4 py-3 cursor-pointer bg-gray-50 dark:bg-white/5 rounded-xl group-open:rounded-b-none transition-colors">
               <div class="flex items-center gap-3">
                 <i class="ph ph-caret-down text-gray-400 group-open:rotate-180 transition-transform"></i>
-                <span class="font-semibold text-gray-800 dark:text-white">Cluster ${c.cluster_id}</span>
+                <span class="font-semibold text-gray-800 dark:text-white">${c.cluster_id === 'dead' ? 'Unresponsive Hosts' : 'Cluster ' + c.cluster_id}</span>
               </div>
               <span class="badge bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 px-2 py-1 rounded text-xs font-medium">${c.size} nodes</span>
             </summary>
@@ -718,6 +718,55 @@ document.addEventListener("DOMContentLoaded", async () => {
           else if (domain) url += `domain=${encodeURIComponent(domain)}`;
           window.location.href = url;
         };
+      }
+
+      // ── Bind Export Center Downloads ──
+      const exportMdBtn = document.getElementById("export-md-btn");
+      const exportJsonBtn = document.getElementById("export-json-btn");
+      const exportBurpBtn = document.getElementById("export-burp-btn");
+      const burpTooltip = document.getElementById("burp-tooltip");
+
+      if (exportMdBtn && exportJsonBtn && exportBurpBtn) {
+        const reportFiles = r.report_files || {};
+        const exportStatus = r.export_status || {};
+
+        // 1. Markdown download
+        exportMdBtn.onclick = () => {
+          if (reportFiles.markdown) {
+            window.location.href = `/download/${encodeURIComponent(reportFiles.markdown)}`;
+          } else {
+            alert("Markdown report file is not available.");
+          }
+        };
+
+        // 2. JSON download
+        exportJsonBtn.onclick = () => {
+          if (reportFiles.json) {
+            window.location.href = `/download/${encodeURIComponent(reportFiles.json)}`;
+          } else {
+            alert("JSON export file is not available.");
+          }
+        };
+
+        // 3. Burp Suite download (conditional state logic)
+        const burpAvailable = exportStatus.burp_available === true;
+        if (burpAvailable && reportFiles.burp) {
+          exportBurpBtn.disabled = false;
+          if (burpTooltip) {
+            burpTooltip.textContent = "Download replayable Burp requests file";
+            burpTooltip.className = "absolute z-20 bottom-full left-1/2 -translate-x-1/2 mb-2 w-72 bg-gray-900 border border-white/10 p-3 rounded-lg text-xs text-emerald-400 shadow-xl opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all pointer-events-none text-center font-semibold";
+          }
+          exportBurpBtn.onclick = () => {
+            window.location.href = `/download/${encodeURIComponent(reportFiles.burp)}`;
+          };
+        } else {
+          exportBurpBtn.disabled = true;
+          const reason = exportStatus.burp_reason || "No replayable HTTP findings (SQLi, XSS, SSRF, etc.) detected.";
+          if (burpTooltip) {
+            burpTooltip.textContent = reason;
+            burpTooltip.className = "absolute z-20 bottom-full left-1/2 -translate-x-1/2 mb-2 w-72 bg-gray-900 border border-white/10 p-3 rounded-lg text-xs text-red-400 shadow-xl opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all pointer-events-none text-center font-semibold";
+          }
+        }
       }
     }
 

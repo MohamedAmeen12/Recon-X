@@ -291,15 +291,23 @@ class ExploitationStrategyGenerator:
                         explanation = "No verified public exploit — exploitation path undetermined"
                         status = "No Public Exploit Evidence"
 
-                # --- PORT DEDUPLICATION FIX ---
-                # Extract unique ports from scan results
-                unique_ports = sorted(list(set([p.get('port') for p in port_scan_results if p.get('port')])))
+                # Filter ports by subdomain to map correctly
+                tech_subdomain = tech.get("subdomain")
+                if tech_subdomain:
+                    tech_ports = [
+                        p.get('port') for p in port_scan_results 
+                        if p.get('subdomain') == tech_subdomain and p.get('port')
+                    ]
+                else:
+                    tech_ports = [p.get('port') for p in port_scan_results if p.get('port')]
+                
+                unique_ports = sorted(list(set(tech_ports)))
                 ports_str = ", ".join(map(str, unique_ports))
                 service_display = f"{tech_name} (Port: {ports_str})" if unique_ports else tech_name
 
                 # --- STEP 3: CONSTRUCT STRATEGY OBJECT ---
                 strategy = {
-                    "subdomain": "Target Interaction",
+                    "subdomain": tech.get("subdomain") or "Target Interaction",
                     "service": service_display,
                     "cve_id": cve_id,
                     "cwe_id": cwe_id,
@@ -316,6 +324,7 @@ class ExploitationStrategyGenerator:
         self.q_agent.save_q_table()
         
         return strategies
+
 
     def _build_attack_chain(self, cwe_id: str, tech_name: str) -> List[str]:
         """

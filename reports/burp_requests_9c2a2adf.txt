@@ -1,0 +1,6 @@
+GET /search.php?q=1 HTTP/1.1
+Host: vulnerable.target.local
+User-Agent: ReconX-Agent
+Accept: */*
+Connection: close
+

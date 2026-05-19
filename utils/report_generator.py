@@ -257,7 +257,7 @@ def generate_html_report(scan_results, domain, username, scan_id):
                 {% for c in clusters %}
                 <div style="width: 48%; float: left; margin-right: 2%; margin-bottom: 20pt;">
                     <div class="glass-card" style="margin-bottom: 0;">
-                        <span class="card-title">Cluster {{ c.cluster_id }} ({{ c.size }} Nodes)</span>
+                        <span class="card-title">{% if c.cluster_id == 'dead' %}Unresponsive Hosts{% else %}Cluster {{ c.cluster_id }}{% endif %} ({{ c.size }} Nodes)</span>
                         <div style="max-height: 250pt; overflow: hidden;">
                             {% for sub in c.examples[:12] %}
                             {% set sub_dat = host_details[sub] %}
@@ -266,7 +266,7 @@ def generate_html_report(scan_results, domain, username, scan_id):
                                 {% if sub_dat and sub_dat.is_active %}
                                     <span class="badge bg-green" style="font-size: 6pt; padding: 1pt 3pt;">ACTIVE</span>
                                 {% else %}
-                                    <span class="badge bg-gray" style="font-size: 6pt; padding: 1pt 3pt;">DEAD</span>
+                                    <span class="badge bg-gray" style="font-size: 6pt; padding: 1pt 3pt;">UNRESPONSIVE</span>
                                 {% endif %}
                                 
                                 {% if sub_dat and sub_dat.ips %}

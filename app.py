@@ -137,6 +137,44 @@ app.register_blueprint(admin_bp)
 app.register_blueprint(ai_bp)
 
 # ====================================================
+# SECURE REPORT DOWNLOAD ROUTE
+# ====================================================
+from flask import send_from_directory, abort
+from werkzeug.utils import secure_filename
+
+@app.route('/download/<path:filename>')
+def download_file(filename):
+    """
+    Secure file download endpoint. Enforces path traversal checks.
+    """
+    # 1. Reject path traversal sequences explicitly
+    if ".." in filename or "/" in filename or "\\" in filename:
+        logger.warning(f"BLOCKED: Path traversal attempt: '{filename}'")
+        return jsonify({"error": "Path traversal attempt blocked"}), 400
+
+    safe_name = secure_filename(filename)
+    if safe_name != filename:
+        logger.warning(f"BLOCKED: Sanitization mismatch: '{filename}' != '{safe_name}'")
+        return jsonify({"error": "Invalid filename format"}), 400
+
+    # Ensure reports directory is resolved absolutely at workspace root
+    reports_dir = os.path.abspath(os.path.join(app.root_path, "reports"))
+    if not os.path.exists(reports_dir):
+        os.makedirs(reports_dir, exist_ok=True)
+
+    file_path = os.path.abspath(os.path.join(reports_dir, safe_name))
+    
+    # 2. Enforce directory containment
+    if not file_path.startswith(reports_dir):
+        logger.warning(f"BLOCKED: Directory containment check failed for: {file_path}")
+        return jsonify({"error": "Access denied"}), 403
+
+    if not os.path.isfile(file_path):
+        return jsonify({"error": "File not found"}), 404
+
+    return send_from_directory(reports_dir, safe_name, as_attachment=True)
+
+# ====================================================
 # MAIN
 # ====================================================
 if __name__ == "__main__":

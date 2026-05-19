@@ -16,6 +16,69 @@ MAX_RETRIES = 3
 RETRY_DELAY = 2
 CONNECTION_TIMEOUT = 10000
 
+import functools
+from pymongo.errors import AutoReconnect, ServerSelectionTimeoutError, ConnectionFailure
+
+def retry_mongo_op(max_retries=5, initial_delay=0.5, backoff=2.0):
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            delay = initial_delay
+            last_exc = None
+            for attempt in range(max_retries):
+                try:
+                    return func(*args, **kwargs)
+                except (AutoReconnect, ServerSelectionTimeoutError, ConnectionFailure) as e:
+                    last_exc = e
+                    logger.warning(
+                        f"MongoDB transient error in {func.__name__} (attempt {attempt+1}/{max_retries}): {e}. "
+                        f"Retrying in {delay:.1f}s..."
+                    )
+                    time.sleep(delay)
+                    delay *= backoff
+            logger.error(f"MongoDB operation {func.__name__} failed permanently after {max_retries} attempts.")
+            raise last_exc
+        return wrapper
+    return decorator
+
+class RetryCollectionWrapper:
+    def __init__(self, collection):
+        self._collection = collection
+
+    def __getattr__(self, name):
+        attr = getattr(self._collection, name)
+        if name.startswith('_'):
+            return attr
+        if callable(attr):
+            return retry_mongo_op()(attr)
+        return attr
+
+    def __getitem__(self, item):
+        return self._collection[item]
+
+    def __repr__(self):
+        return repr(self._collection)
+
+class RetryDatabaseWrapper:
+    def __init__(self, db_obj):
+        self._db = db_obj
+
+    def __getattr__(self, name):
+        attr = getattr(self._db, name)
+        from pymongo.collection import Collection
+        if isinstance(attr, Collection):
+            return RetryCollectionWrapper(attr)
+        if callable(attr):
+            return retry_mongo_op()(attr)
+        return attr
+
+    def __getitem__(self, name):
+        col = self._db[name]
+        return RetryCollectionWrapper(col)
+
+    def __repr__(self):
+        return repr(self._db)
+
 client: Optional[MongoClient] = None
 db = None
 
@@ -53,7 +116,7 @@ def connect_mongodb():
             client.server_info()
             logger.info("MongoDB connected successfully")
 
-            db = client["reconx_db"]
+            db = RetryDatabaseWrapper(client["reconx_db"])
 
             users_collection = db["users"]
             domains_collection = db["domains"]

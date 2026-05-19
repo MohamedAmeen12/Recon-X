@@ -1,0 +1,30 @@
+GET / HTTP/1.1
+Host: vulnweb.com
+User-Agent: ReconX-Agent
+Accept: */*
+Connection: close
+
+
+========================================
+GET / HTTP/1.1
+Host: www.vulnweb.com
+User-Agent: ReconX-Agent
+Accept: */*
+Connection: close
+
+
+========================================
+GET / HTTP/1.1
+Host: rest.vulnweb.com
+User-Agent: ReconX-Agent
+Accept: */*
+Connection: close
+
+
+========================================
+GET / HTTP/1.1
+Host: test.vulnweb.com
+User-Agent: ReconX-Agent
+Accept: */*
+Connection: close
+

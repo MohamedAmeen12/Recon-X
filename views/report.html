@@ -29,6 +29,63 @@
     </div>
   </div>
 
+  <!-- Export Formats Panel -->
+  <div class="glass-card p-6 bg-gradient-to-br from-gray-900/40 to-slate-900/40 border border-white/5 shadow-lg relative overflow-visible">
+    <h3 class="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+      <i class="ph-bold ph-export text-emerald-400"></i> Intelligence Export Center
+    </h3>
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <!-- Markdown -->
+      <button id="export-md-btn" class="flex items-center justify-between p-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-emerald-500/30 transition-all group text-left">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-400 text-lg group-hover:scale-110 transition-transform">
+            <i class="ph-bold ph-file-text"></i>
+          </div>
+          <div>
+            <h4 class="font-semibold text-gray-200 text-sm">HackerOne Markdown</h4>
+            <p class="text-xs text-gray-400 mt-0.5 font-normal">Penetration testing report format</p>
+          </div>
+        </div>
+        <i class="ph-bold ph-download-simple text-gray-400 group-hover:text-emerald-400 transition-colors"></i>
+      </button>
+
+      <!-- JSON -->
+      <button id="export-json-btn" class="flex items-center justify-between p-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-emerald-500/30 transition-all group text-left">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-lg bg-cyan-500/10 flex items-center justify-center text-cyan-400 text-lg group-hover:scale-110 transition-transform">
+            <i class="ph-bold ph-braces"></i>
+          </div>
+          <div>
+            <h4 class="font-semibold text-gray-200 text-sm">Structured JSON</h4>
+            <p class="text-xs text-gray-400 mt-0.5 font-normal">Machine-readable scan intelligence</p>
+          </div>
+        </div>
+        <i class="ph-bold ph-download-simple text-gray-400 group-hover:text-cyan-400 transition-colors"></i>
+      </button>
+
+      <!-- Burp -->
+      <div class="relative group/tooltip w-full">
+        <button id="export-burp-btn" class="w-full flex items-center justify-between p-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-emerald-500/30 transition-all group text-left disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-white/10 disabled:hover:bg-white/5">
+          <div class="flex items-center gap-3">
+            <div id="burp-icon-container" class="w-10 h-10 rounded-lg bg-orange-500/10 flex items-center justify-center text-orange-400 text-lg group-hover:scale-110 transition-transform group-disabled:scale-100 group-disabled:opacity-50">
+              <i class="ph-bold ph-browser"></i>
+            </div>
+            <div>
+              <h4 class="font-semibold text-gray-200 text-sm">Burp Suite Export</h4>
+              <p class="text-xs text-gray-400 mt-0.5 font-normal">Replayable HTTP requests (.txt)</p>
+            </div>
+          </div>
+          <i id="burp-dl-icon" class="ph-bold ph-download-simple text-gray-400 group-hover:text-orange-400 transition-colors group-disabled:opacity-30"></i>
+        </button>
+        <!-- Tooltip content -->
+        <div id="burp-tooltip" class="absolute z-20 bottom-full left-1/2 -translate-x-1/2 mb-2 w-72 bg-gray-900 border border-white/10 p-3 rounded-lg text-xs text-gray-300 shadow-xl opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all pointer-events-none text-center">
+          No replayable HTTP findings (SQLi, XSS, SSRF, etc.) detected.
+          <div class="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Report Content Container -->
   <div id="report-content" class="w-full">
     <div class="glass-card p-8 flex flex-col justify-center items-center h-[300px]">

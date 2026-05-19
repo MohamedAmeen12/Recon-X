@@ -106,7 +106,18 @@ class HTTPAnomalyModel:
         prediction = self.model.predict(X_scaled)[0]  # -1 = anomaly
         
         status = "suspicious" if prediction == -1 else "normal"
-        justification = f"Classification as '{status}' is justified by a statistical anomaly score of {round(anomaly_score, 4)} indicating deviation from the learned traffic baseline."
+        
+        if status == "suspicious":
+            justification = (
+                f"Classification as 'suspicious' is mathematically driven by an Isolation Forest decision score of "
+                f"{round(anomaly_score, 4)} (below the anomaly threshold of 0.0). Feature parameters analyzed: "
+                f"packet_count={features.get('packet_count', 0)}, tcp_syn_count={features.get('tcp_syn_count', 0)}, unique_ips={features.get('unique_ips', 0)}."
+            )
+        else:
+            justification = (
+                f"Traffic parameters are within normal baseline. Isolation Forest decision score of "
+                f"{round(anomaly_score, 4)} is above the threshold of 0.0."
+            )
 
         return {
             "model": "Model 4 - HTTP Anomaly Detection",

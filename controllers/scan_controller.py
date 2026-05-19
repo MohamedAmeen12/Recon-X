@@ -328,16 +328,17 @@ def scan_domain():
                         })
 
                 technology_results_for_model5 = []
-
                 for tech_result in tech_results:
+                    url = tech_result.get("url", "")
+                    subdomain = url.replace("http://", "").replace("https://", "").split("/")[0].split(":")[0]
                     for tech in tech_result.get("technologies", []):
-                        # Only include technologies with CVEs (real data requirement)
                         if tech.get("cves") and len(tech.get("cves", [])) > 0:
-                            technology_results_for_model5.append(tech)
+                            tech_copy = tech.copy()
+                            tech_copy["subdomain"] = subdomain
+                            technology_results_for_model5.append(tech_copy)
 
                 http_anomaly_result_for_model5 = http_anomaly_results[0]["model4_result"] if http_anomaly_results else {}
-                
-                # Only run Model 5 if we have technologies with CVEs
+
                 if technology_results_for_model5:
                     print(f"[Model 5] Running exploitation strategy engine with {len(technology_results_for_model5)} technologies")
                     model5_output = run_model_5(
@@ -443,6 +444,21 @@ def scan_domain():
         insert_result = reports_collection.insert_one(report)
         report_id = str(insert_result.inserted_id)
 
+        # ── Run the Export Pipeline ──
+        from pipeline.pipeline_controller import run_export_pipeline
+        export_res = run_export_pipeline(report["result"], domain, report_id)
+        
+        # Save the report files info back to the report in DB
+        reports_collection.update_one(
+            {"_id": ObjectId(report_id)},
+            {"$set": {
+                "result.report_files": export_res["report_files"],
+                "result.export_status": export_res["export_status"]
+            }}
+        )
+        report["result"]["report_files"] = export_res["report_files"]
+        report["result"]["export_status"] = export_res["export_status"]
+
         # ── Audit Log: scan completed ──
         log_audit_event(
             action="scan_completed",
@@ -457,7 +473,9 @@ def scan_domain():
         return jsonify(mongo_to_json({
             "message": "Scan complete", 
             "report_id": report_id,
-            "report": report["result"]
+            "report": report["result"],
+            "report_files": export_res["report_files"],
+            "export_status": export_res["export_status"]
         })), 200
 
     except Exception as e:

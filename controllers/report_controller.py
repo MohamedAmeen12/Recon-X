@@ -46,6 +46,24 @@ def enrich_report_data(record):
     """
     domain = record.get("domain")
     result = record.setdefault("result", {})
+    report_id = str(record["_id"])
+
+    # ── Export Fallback: Generate exports dynamically if they do not exist ──
+    if "report_files" not in result:
+        try:
+            from pipeline.pipeline_controller import run_export_pipeline
+            export_res = run_export_pipeline(result, domain, report_id)
+            db.reports_collection.update_one(
+                {"_id": record["_id"]},
+                {"$set": {
+                    "result.report_files": export_res["report_files"],
+                    "result.export_status": export_res["export_status"]
+                }}
+            )
+            result["report_files"] = export_res["report_files"]
+            result["export_status"] = export_res["export_status"]
+        except Exception as e:
+            print(f"[Enrich] Dynamic report generation error: {e}")
 
     # ── 0. Hydrate raw_docs from subdomains_collection if missing ────────────
     if not result.get("raw_docs"):
