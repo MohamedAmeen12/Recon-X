@@ -121,6 +121,20 @@ def scan_domain():
         start = time.time()
         print(f"Starting scan for domain: {domain} by user {session['user_id']}")
 
+        # ── Ensure tool binaries are discoverable regardless of process PATH ──
+        import os as _os
+        _tool_dirs = [
+            _os.path.expanduser(r"~\go\bin"),           # subfinder, amass, httpx, katana, nuclei, ffuf
+            r"C:\Program Files (x86)\Nmap",             # nmap
+            r"C:\Program Files\Nmap",
+        ]
+        _current_path = _os.environ.get("PATH", "")
+        _additions = [d for d in _tool_dirs
+                      if _os.path.isdir(d) and d not in _current_path]
+        if _additions:
+            _os.environ["PATH"] = _os.pathsep.join(_additions) + _os.pathsep + _current_path
+            print(f"[Scan] Injected tool paths: {_additions}")
+
         # ── Audit Log: scan started ──
         log_audit_event(
             action="scan_started",
@@ -145,73 +159,88 @@ def scan_domain():
             )
 
         # ====================================================
-        # MODEL 4: HTTP ANOMALY DETECTION
+        # MODEL 4: HTTP ANOMALY DETECTION  (all subdomains run in PARALLEL)
         # ====================================================
         http_anomaly_results = []
 
-        targets = [
-            sub for sub in result.get("raw_docs", [])
-            if sub.get("subdomain")
-        ]
-        
-        # ── ROOT PRIORITIZATION ──
-        # Ensure root domain is ALWAYS at index 0
-        targets.sort(key=lambda x: x.get("is_root", False), reverse=True)
-        # ─────────────────────────
+        targets = sorted(
+            [s for s in result.get("raw_docs", []) if s.get("subdomain")],
+            key=lambda x: x.get("is_root", False),
+            reverse=True,
+        )
 
-        for sub in targets[:5]:
+        # Lazy-load model once before spawning threads
+        try:
+            _m4_shared = get_model4()
+        except Exception as _m4_err:
+            print(f"[Model4] Load error ({_m4_err}) — using rule-based mode")
+            from models.model4 import HTTPAnomalyModel as _M4
+            _m4_shared = _M4()
+
+        # ── Step A: collect HTTP features for all subdomains IN PARALLEL ──────
+        # (pure HTTP requests — fully thread-safe)
+        def _collect_http(sub: dict):
+            subdomain = sub.get("subdomain")
+            url = f"http://{subdomain}"
             try:
-                subdomain = sub.get("subdomain")
-                url = f"http://{subdomain}"
+                feats = collect_http_features(url)
+                return sub, subdomain, url, feats
+            except Exception as exc:
+                print(f"[Model4] HTTP collect error on {subdomain}: {exc}")
+                return sub, subdomain, url, {}
 
-                # --- MULTI-MODEL COLLECTION ---
-                # Run HTTP Analysis and Traffic Capture in Parallel
-                with ThreadPoolExecutor(max_workers=2) as coll_exec:
-                    traffic_future = coll_exec.submit(capture_traffic, subdomain, duration=3)
-                    
-                    # Allow scapy sniff to initialize before making the HTTP request
-                    time.sleep(1) 
-                    
-                    http_future = coll_exec.submit(collect_http_features, url)
-                    
-                    features = http_future.result()
-                    traffic_features = traffic_future.result()
-                    
-                    # Merge features
-                    features.update(traffic_features)
+        http_feat_map: dict = {}   # subdomain → (sub, url, feats)
+        with ThreadPoolExecutor(max_workers=5) as _hf_exec:
+            _hf_futures = [_hf_exec.submit(_collect_http, s) for s in targets[:5]]
+            for _hf in _hf_futures:
+                try:
+                    sub, subdomain, url, feats = _hf.result(timeout=12)
+                    http_feat_map[subdomain] = (sub, url, feats)
+                except Exception as exc:
+                    print(f"[Model4] HTTP future error: {exc}")
 
-                anomaly_result = get_model4().predict(features)
+        # ── Step B: Scapy traffic capture SEQUENTIALLY (one at a time) ──────
+        # Npcap on Windows segfaults when multiple threads call sniff() concurrently.
+        # Traffic capture is short (2 s) so sequential is acceptable.
+        traffic_map: dict = {}
+        for sub in targets[:5]:
+            subdomain = sub.get("subdomain")
+            try:
+                traffic_map[subdomain] = capture_traffic(subdomain, duration=2)
+            except Exception as exc:
+                print(f"[Model4] Traffic capture error on {subdomain}: {exc}")
+                traffic_map[subdomain] = {}
 
-                anomaly_doc = {
-                    "domain": domain,
-                    "subdomain": subdomain,
-                    "is_root": sub.get("is_root", False),
-                    "url": url,
-                    "status": anomaly_result.get("status"),
-                    "anomaly_score": anomaly_result.get("anomaly_score"),
-                    "signals": anomaly_result.get("signals", []),
-                    "traffic_data": anomaly_result.get("traffic_data", {}),
-                    "model": "Model 4 - HTTP & Traffic Anomaly Detection",
-                    "scanned_at": datetime.datetime.utcnow()
-                }
+        # ── Step C: Merge + predict + persist ────────────────────────────────
+        for subdomain, (sub, url, feats) in http_feat_map.items():
+            feats.update(traffic_map.get(subdomain, {}))
+            try:
+                anomaly_result = _m4_shared.predict(feats)
+            except Exception as exc:
+                print(f"[Model4] Predict error on {subdomain}: {exc}")
+                continue
 
-                anomaly_doc = sanitize_for_mongo(anomaly_doc)
-                anomalies_collection.update_one(
-                    {"domain": domain, "subdomain": subdomain},
-                    {"$set": anomaly_doc},
-                    upsert=True
-                )
-
-                http_anomaly_results.append({
-                    "domain": domain,
-                    "subdomain": subdomain,
-                    "url": url,
-                    "model4_result": anomaly_result,
-                    "scanned_at": datetime.datetime.utcnow()
-                })
-
-            except Exception as e:
-                print(f"[Model4] Error on {subdomain}: {e}")
+            anomaly_doc = sanitize_for_mongo({
+                "domain": domain,
+                "subdomain": subdomain,
+                "is_root": sub.get("is_root", False),
+                "url": url,
+                "status":        anomaly_result.get("status"),
+                "anomaly_score": anomaly_result.get("anomaly_score"),
+                "signals":       anomaly_result.get("signals", []),
+                "traffic_data":  anomaly_result.get("traffic_data", {}),
+                "model": "Model 4 - HTTP & Traffic Anomaly Detection",
+                "scanned_at": datetime.datetime.utcnow(),
+            })
+            anomalies_collection.update_one(
+                {"domain": domain, "subdomain": subdomain},
+                {"$set": anomaly_doc}, upsert=True,
+            )
+            http_anomaly_results.append({
+                "domain": domain, "subdomain": subdomain,
+                "url": url, "model4_result": anomaly_result,
+                "scanned_at": datetime.datetime.utcnow(),
+            })
 
         # ====================================================
         # MODEL 3: TECHNOLOGY FINGERPRINTING
@@ -275,8 +304,11 @@ def scan_domain():
                     )
 
                     try:
-                        tech_results = future.result(timeout=300) # Increased for Active Validation
+                        # 480s: fingerprinting (NVD API per-tech) + active validation
+                        # Crawling now runs in background so it no longer consumes this budget
+                        tech_results = future.result(timeout=480)
                     except FutureTimeoutError:
+                        print("[Model3] Fingerprinting timed out — returning partial results")
                         tech_results = []
 
                     for tech_result in tech_results:

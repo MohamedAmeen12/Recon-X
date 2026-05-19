@@ -201,7 +201,10 @@ if __name__ == "__main__":
     logger.info("   Admin:     http://localhost:5000/admin")
     logger.info("=" * 60)
     try:
-        app.run(debug=True, host='0.0.0.0', port=5000, threaded=True)
+        # use_reloader=False prevents Werkzeug from spawning a child process that
+        # conflicts with Scapy/Npcap raw sockets on Windows (causes SIGSEGV/exit 139).
+        # Debug features (error pages, auto-reload on code change) remain active.
+        app.run(debug=True, host='0.0.0.0', port=5000, threaded=True, use_reloader=False)
     except KeyboardInterrupt:
         logger.info("Server stopped by user (KeyboardInterrupt).")
         sys.exit(0)

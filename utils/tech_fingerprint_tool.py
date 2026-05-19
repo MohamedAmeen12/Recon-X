@@ -1,9 +1,117 @@
 """
-Technology fingerprinting from HTTP headers, banners, and nmap output
+Technology fingerprinting from HTTP headers, httpx, banners, and nmap output.
+httpx is the primary active fingerprinting engine when installed.
 """
-import requests
+import json
+import os
 import re
+import shutil
+import subprocess
 from typing import Dict, List, Optional
+
+import requests
+
+_HTTPX_BIN = os.path.expanduser(r"~\go\bin\httpx.exe")
+
+# Alternative locations for the Go httpx binary
+_HTTPX_CANDIDATES = [
+    _HTTPX_BIN,
+    r"C:\Tools\httpx.exe",
+    r"C:\go\bin\httpx.exe",
+]
+
+
+def _find_go_httpx() -> Optional[str]:
+    """
+    Locate the projectdiscovery Go httpx binary.
+    Explicitly avoids the Python httpx CLI which has a different interface.
+    """
+    for path in _HTTPX_CANDIDATES:
+        if os.path.exists(path):
+            return path
+    # Only accept a PATH entry if it looks like the Go tool (has -tech-detect flag)
+    candidate = shutil.which("httpx")
+    if candidate:
+        try:
+            test = subprocess.run(
+                [candidate, "-h"], capture_output=True, text=True, timeout=3
+            )
+            if "tech-detect" in test.stdout or "tech-detect" in test.stderr:
+                return candidate
+        except Exception:
+            pass
+    return None
+
+
+def run_httpx(url: str, timeout: int = 30) -> Dict:
+    """
+    Run the projectdiscovery Go httpx tool against *url* for technology detection.
+    Returns parsed JSON dict or {} if the Go httpx binary is not installed.
+    """
+    bin_ = _find_go_httpx()
+    if not bin_:
+        return {}
+    try:
+        result = subprocess.run(
+            [
+                bin_, "-u", url,
+                "-json", "-silent",
+                "-tech-detect",
+                "-status-code",
+                "-title",
+                "-web-server",
+                "-no-color",
+                "-timeout", "10",
+            ],
+            capture_output=True, text=True, timeout=timeout,
+        )
+        for line in result.stdout.splitlines():
+            line = line.strip()
+            if line:
+                try:
+                    return json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+    except Exception as exc:
+        pass
+    return {}
+
+
+def extract_technologies_from_httpx(httpx_data: Dict) -> List[Dict]:
+    """
+    Parse httpx JSON output and return a list of technology dicts compatible
+    with the existing fingerprint_technologies() format.
+    """
+    if not httpx_data:
+        return []
+
+    technologies = []
+
+    # Web server (e.g. "Apache/2.4.51")
+    web_server = httpx_data.get("webserver", "") or httpx_data.get("web-server", "")
+    if web_server:
+        parts = web_server.split("/", 1)
+        technologies.append({
+            "name": parts[0].strip(),
+            "version": parts[1].strip() if len(parts) > 1 else "",
+            "category": "Web Server",
+            "source": "httpx",
+        })
+
+    # Technologies detected by httpx (list of "Name:Version" or plain "Name")
+    for tech in httpx_data.get("tech", []) or httpx_data.get("technologies", []):
+        if ":" in tech:
+            name, version = tech.split(":", 1)
+        else:
+            name, version = tech, ""
+        technologies.append({
+            "name": name.strip(),
+            "version": version.strip(),
+            "category": "Technology",
+            "source": "httpx",
+        })
+
+    return technologies
 
 def extract_http_headers(url):
     """Extract HTTP headers from a URL."""
@@ -125,22 +233,28 @@ def extract_technologies_from_nmap(nmap_data):
 def fingerprint_technologies(url, nmap_data=None, whatweb_result=None):
     """
     Comprehensive technology fingerprinting from multiple sources.
-    Returns combined technology list.
+    Priority: httpx (primary) → HTTP headers → WhatWeb → nmap banners.
+    Returns combined, deduplicated technology list.
     """
     all_technologies = []
-    
-    # Extract from HTTP headers
+
+    # ── Primary: httpx (richest detection when installed) ─────────────────
+    httpx_data = run_httpx(url)
+    if httpx_data:
+        all_technologies.extend(extract_technologies_from_httpx(httpx_data))
+
+    # ── HTTP headers (always available, no binary needed) ─────────────────
     headers = extract_http_headers(url)
     header_techs = extract_technologies_from_headers(headers)
     all_technologies.extend(header_techs)
-    
-    # Extract from WhatWeb if available
+
+    # ── WhatWeb (if result pre-supplied by caller) ─────────────────────────
     if whatweb_result:
         from utils.whatweb_tool import extract_technologies_from_whatweb
         whatweb_techs = extract_technologies_from_whatweb(whatweb_result)
         all_technologies.extend(whatweb_techs)
-    
-    # Extract from nmap if available
+
+    # ── nmap banners (if supplied by caller) ──────────────────────────────
     if nmap_data:
         nmap_techs = extract_technologies_from_nmap(nmap_data)
         all_technologies.extend(nmap_techs)

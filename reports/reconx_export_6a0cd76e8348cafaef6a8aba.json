@@ -1,0 +1,35 @@
+{
+  "target": "vulnweb.com",
+  "generated_at": "2026-05-19T21:34:39.058904Z",
+  "tool": "ReconX",
+  "engine_version": "2.0.0",
+  "scan_id": "6a0cd76e8348cafaef6a8aba",
+  "summary": {
+    "total_findings": 1,
+    "web_exploit_count": 0,
+    "technology_cve_count": 0,
+    "traffic_anomaly_count": 1,
+    "severity_distribution": {
+      "critical": 0,
+      "high": 0,
+      "medium": 0,
+      "low": 0
+    }
+  },
+  "web_exploit_findings": [],
+  "technology_cve_findings": [],
+  "traffic_anomaly_findings": [
+    {
+      "finding_type": "traffic_anomaly",
+      "target": "vulnweb.com",
+      "host": "vulnweb.com",
+      "packet_count": 2,
+      "syn_count": 2,
+      "ip_count": 2,
+      "anomaly_score": -0.0106,
+      "classification": "suspicious",
+      "explanation": "Rule-based signals detected: Missing Security Headers: 4/4 required headers absent (CSP, HSTS, X-Frame-Options, X-Content-Type-Options); Stability: High HTTP error rate (>= 50%). Isolation Forest decision score -0.0106 is below the anomaly threshold (0.0). Traffic features: packet_count=2, tcp_syn_count=2, unique_ips=2.",
+      "scan_id": "6a0cd76e8348cafaef6a8aba"
+    }
+  ]
+}

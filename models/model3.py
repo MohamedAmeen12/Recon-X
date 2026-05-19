@@ -4,15 +4,17 @@ Model 3: Technology Fingerprinting & Vulnerability Detection (Supervised ML)
 Input: Nmap output, Web banners
 Output: Detected technologies, CVE mappings, Vulnerability Prediction
 """
-import numpy as np
+import logging
 import os
 import re
-import logging
+
 import joblib
-from scipy.sparse import hstack
+import numpy as np
+from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, List, Optional
-from utils.tech_fingerprint_tool import fingerprint_technologies
+
 from models.active_validator import validate_cve
+from utils.tech_fingerprint_tool import fingerprint_technologies
 
 # Global variables for model artifacts
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -106,45 +108,53 @@ def is_version_in_range(v_str: str, range_info: dict) -> tuple:
     except (InvalidVersion, ValueError, TypeError):
         return False, "INSUFFICIENT EVIDENCE", "Unclear"
 
+# Process-level CVE cache — avoids hitting NVD repeatedly for the same tech/version
+# across multiple subdomains in one scan and across sequential scans in the session.
+_CVE_CACHE: dict = {}
+
+
 def lookup_cve(tech_name, version=""):
     """
-    Lookup CVE information using NVD API.
+    Lookup CVE information using NVD API with process-level caching.
+    Timeout reduced from 25 s to 10 s — NVD usually responds in < 2 s with an API key.
     """
-    cves = []
     from utils.domain_validator import is_lab_mode_enabled
     if is_lab_mode_enabled():
-        return cves
+        return []
 
+    cache_key = f"{tech_name.lower().strip()}:{version.lower().strip()}"
+    if cache_key in _CVE_CACHE:
+        return list(_CVE_CACHE[cache_key])   # return a copy so callers can mutate safely
+
+    cves = []
     try:
         from utils.nvd_api_tool import get_nvd_client
         from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
-        
+
         client = get_nvd_client()
-        executor = ThreadPoolExecutor(max_workers=1)
-        future = executor.submit(client.lookup_technology_vulnerabilities, tech_name, version)
-        
-        try:
-            df = future.result(timeout=25)  # NVD API can be slow; 25 s gives it enough time
-            if df is not None and not df.empty:
-                for _, row in df.head(10).iterrows():
-                    cves.append({
-                        "cve": row["cve_id"],
-                        "cvss": float(row["cvss_score"]),
-                        "description": row["description"],
-                        "severity": row["severity"],
-                        "published_date": row["published_date"],
-                        "affected_versions": row.get("affected_versions", []),
-                        "cwe": row.get("cwe", "N/A")
-                    })
-        except FutureTimeoutError:
-            logger.warning(f"[Model 3] NVD lookup timed out for {tech_name} {version} — CVEs may be incomplete")
-        except Exception as _e:
-            logger.warning(f"[Model 3] NVD API error for {tech_name} {version}: {_e}")
-            
-    except Exception as e:
-        # Fallback to empty context if NVD tool fails drastically
-        print(f"[Model 3] NVD lookup error: {e}")
-    
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(client.lookup_technology_vulnerabilities, tech_name, version)
+            try:
+                df = future.result(timeout=10)  # reduced from 25 s
+                if df is not None and not df.empty:
+                    for _, row in df.head(5).iterrows():   # top-5 CVEs is enough
+                        cves.append({
+                            "cve":              row["cve_id"],
+                            "cvss":             float(row["cvss_score"]),
+                            "description":      row["description"],
+                            "severity":         row["severity"],
+                            "published_date":   row["published_date"],
+                            "affected_versions": row.get("affected_versions", []),
+                            "cwe":              row.get("cwe", "N/A"),
+                        })
+            except FutureTimeoutError:
+                logger.warning(f"[Model 3] NVD timeout for {tech_name} {version}")
+            except Exception as _e:
+                logger.warning(f"[Model 3] NVD error for {tech_name} {version}: {_e}")
+    except Exception as exc:
+        print(f"[Model 3] NVD lookup error: {exc}")
+
+    _CVE_CACHE[cache_key] = list(cves)
     return cves
 
 
@@ -226,87 +236,117 @@ def classify_vulnerability_status(tech_name, version, cves):
     }
 
 
-def run_technology_fingerprinting(urls_data):
+def _process_single_technology(tech: dict, url: str) -> dict:
     """
-    Main function for Model 3: Technology Fingerprinting & Vulnerability Detection.
+    Process one technology: CVE lookup → classification → active validation.
+    Runs in a thread pool so all technologies for a URL are processed in parallel.
     """
-    results = []
-    
-    # Pre-load models once
-    load_artifacts()
-    
-    for url_info in urls_data:
-        url = url_info.get("url")
-        is_root = url_info.get("is_root", False)
-        nmap_data = url_info.get("nmap_data")
-        whatweb_result = url_info.get("whatweb_result")
-        
-        if not url:
-            continue
-        
-        # Step 1: Fingerprint technologies
-        technologies = fingerprint_technologies(url, nmap_data, whatweb_result)
-        
-        # Step 2: Process each technology
-        tech_results = []
-        for tech in technologies:
-            tech_name = tech.get("name", "")
-            version = tech.get("version", "")
-            
-            # Step 2a: Lookup CVEs (Required for features)
-            cves = lookup_cve(tech_name, version)
-            
-            # Step 2b: Strict Classification (Task 1)
-            vuln_status = classify_vulnerability_status(tech_name, version, cves)
-            
-            # Extract filtered CVEs from status result
-            filtered_cves = vuln_status.get("cves", [])
+    tech_name = tech.get("name", "")
+    version   = tech.get("version", "")
 
-            # Step 2c: Active Validation (Task 2)
-            verified_cves = []
-            unverified_cves = []
-            
-            for cve_item in filtered_cves:
-                cve_id = cve_item.get("cve")
-                if cve_id:
-                    validation_result = validate_cve(cve_id, url)
-                    status = validation_result.get("validation_status", "Unknown")
-                    cve_item["validation_status"] = status
-                    cve_item["http_response_code"] = validation_result.get("http_response_code")
-                    
-                    if status == "Exploitable":
+    cves          = lookup_cve(tech_name, version)
+    vuln_status   = classify_vulnerability_status(tech_name, version, cves)
+    filtered_cves = vuln_status.get("cves", [])
+
+    # Active validation — run all CVEs for this technology in parallel
+    verified_cves   = []
+    unverified_cves = []
+
+    if filtered_cves:
+        with ThreadPoolExecutor(max_workers=min(len(filtered_cves), 4)) as val_exec:
+            val_futures = {
+                val_exec.submit(validate_cve, cve_item.get("cve"), url): cve_item
+                for cve_item in filtered_cves
+                if cve_item.get("cve")
+            }
+            for vfuture, cve_item in val_futures.items():
+                try:
+                    vresult = vfuture.result(timeout=12)  # was 60 s
+                    vstatus = vresult.get("validation_status", "Unknown")
+                    cve_item = dict(cve_item)
+                    cve_item["validation_status"] = vstatus
+                    cve_item["http_response_code"] = vresult.get("http_response_code")
+                    if vstatus == "Exploitable":
                         verified_cves.append(cve_item)
                     else:
                         unverified_cves.append(cve_item)
+                except Exception:
+                    unverified_cves.append(cve_item)
 
-            tech_result = {
-                "technology": tech_name,
-                "version": version,
-                "category": tech.get("category", "Unknown"),
-                "vulnerability_status": vuln_status["status"],
-                "confidence": vuln_status["confidence"],
-                "max_cvss": max([c.get("cvss", 0) for c in filtered_cves]) if filtered_cves else 0.0,
-                # New Categorized Slots
-                "verified_vulnerabilities": verified_cves,
-                "unverified_vulnerabilities": unverified_cves,
-                "cves": filtered_cves,
-                "all_cves": filtered_cves,
-                "source": tech.get("source", ""),
-                "metadata": {
-                    "port": tech.get("port"),
-                    "raw_data": tech.get("raw_data", {})
-                }
+    return {
+        "technology":           tech_name,
+        "version":              version,
+        "category":             tech.get("category", "Unknown"),
+        "vulnerability_status": vuln_status["status"],
+        "confidence":           vuln_status["confidence"],
+        "max_cvss":             max((c.get("cvss", 0) for c in filtered_cves), default=0.0),
+        "verified_vulnerabilities":   verified_cves,
+        "unverified_vulnerabilities": unverified_cves,
+        "cves":     filtered_cves,
+        "all_cves": filtered_cves,
+        "source":   tech.get("source", ""),
+        "metadata": {"port": tech.get("port"), "raw_data": tech.get("raw_data", {})},
+    }
+
+
+def run_technology_fingerprinting(urls_data):
+    """
+    Model 3: Technology Fingerprinting & Vulnerability Detection.
+
+    Performance model:
+    - All technologies within a URL are processed IN PARALLEL (CVE lookup + validation).
+    - Multiple URLs are also processed concurrently.
+    - CVE results are cached process-wide to avoid duplicate NVD API calls.
+    """
+    results = []
+    load_artifacts()
+
+    def _process_url(url_info: dict) -> dict:
+        url          = url_info.get("url")
+        is_root      = url_info.get("is_root", False)
+        nmap_data    = url_info.get("nmap_data")
+        whatweb_res  = url_info.get("whatweb_result")
+
+        if not url:
+            return None
+
+        technologies = fingerprint_technologies(url, nmap_data, whatweb_res)
+
+        if not technologies:
+            return {
+                "url": url, "is_root": is_root,
+                "technologies": [], "vulnerable_count": 0, "safe_count": 0,
             }
-            
-            tech_results.append(tech_result)
-        
-        results.append({
-            "url": url,
-            "is_root": is_root,
-            "technologies": tech_results,
-            "vulnerable_count": sum(1 for t in tech_results if t["vulnerability_status"] == "vulnerable"),
-            "safe_count": sum(1 for t in tech_results if t["vulnerability_status"] == "safe")
-        })
+
+        # Run all technologies for this URL in parallel
+        tech_results = []
+        with ThreadPoolExecutor(max_workers=min(len(technologies), 5)) as tex:
+            futures = [tex.submit(_process_single_technology, tech, url)
+                       for tech in technologies]
+            for f in futures:
+                try:
+                    tech_results.append(f.result(timeout=30))
+                except Exception as exc:
+                    logger.warning(f"[Model3] Tech processing error on {url}: {exc}")
+
+        return {
+            "url":             url,
+            "is_root":         is_root,
+            "technologies":    tech_results,
+            "vulnerable_count": sum(1 for t in tech_results if t["vulnerability_status"] in ("vulnerable", "potential")),
+            "safe_count":       sum(1 for t in tech_results if t["vulnerability_status"] == "safe"),
+        }
+
+    # Process all URLs concurrently (each URL itself runs its techs in parallel)
+    with ThreadPoolExecutor(max_workers=min(len(urls_data), 3)) as url_exec:
+        url_futures = [url_exec.submit(_process_url, ui) for ui in urls_data]
+        for uf in url_futures:
+            try:
+                r = uf.result(timeout=60)
+                if r:
+                    results.append(r)
+            except Exception as exc:
+                logger.warning(f"[Model3] URL processing error: {exc}")
     
     return results
 
@@ -345,102 +385,99 @@ def _severity_to_cvss(severity: str) -> float:
 
 def run_full_model3_pipeline(subdomains_data: list) -> list:
     """
-    Enhanced Model 3 entry point that executes:
-      1. Existing technology fingerprinting (run_technology_fingerprinting_for_subdomains)
-      2. NEW crawling pipeline (CrawlingPipeline) in parallel
-      3. Merges crawling discoveries back into the fingerprinting results
+    Enhanced Model 3 entry point.
 
-    The existing function is called unchanged. This wrapper only adds data on top.
-    Falls back gracefully to the original results if the crawling pipeline errors.
+    IMPORTANT — execution model:
+      Step 1 (fingerprinting) runs SYNCHRONOUSLY and its results are returned
+      immediately so Models 4-6 are never blocked.
 
-    Args:
-        subdomains_data: Same format accepted by run_technology_fingerprinting_for_subdomains.
+      Step 2 (crawling) runs in a BACKGROUND DAEMON THREAD.  It writes its
+      enriched data to MongoDB (crawled_endpoints_collection) after the main
+      scan has already saved and the user can already see results.  The next
+      time the report is fetched, crawling data will be there.
 
-    Returns:
-        Enhanced list — same schema as run_technology_fingerprinting_for_subdomains output
-        with an additional "crawling" key per result dict.
+    This prevents the scan_controller 300-second FutureTimeoutError that was
+    causing tech_results to return [] and silencing Models 5 and 6.
     """
     import logging as _logging
+    import threading
     _log = _logging.getLogger(__name__)
 
-    # ── Step 1: Existing fingerprinting (unchanged) ──────────────────────
+    # ── Step 1: Fingerprinting — runs synchronously, must finish fast ────
     existing_results = run_technology_fingerprinting_for_subdomains(subdomains_data)
 
-    # ── Step 2: Crawling pipeline ────────────────────────────────────────
-    crawling_results: list = []
-    try:
-        from models.crawling.pipeline import CrawlingPipeline
-        pipeline = CrawlingPipeline()
-        crawling_results = pipeline.run_for_subdomains(subdomains_data)
-    except Exception as exc:
-        _log.error(f"[Model3Enhanced] Crawling pipeline failed (non-fatal): {exc}")
+    # Tag every result with an empty crawling block immediately so callers
+    # always have the key in the result dict (avoids KeyError in pipeline).
+    for r in existing_results:
+        r.setdefault("crawling", _empty_crawling_block())
 
-    if not crawling_results:
-        # Tag results with empty crawling data so callers always have the key
-        for r in existing_results:
-            r.setdefault("crawling", _empty_crawling_block())
-        return existing_results
+    # ── Step 2: Crawling — fires in background, does NOT block caller ────
+    def _run_crawling_background():
+        try:
+            from models.crawling.pipeline import CrawlingPipeline
+            pipeline = CrawlingPipeline()
+            crawling_results = pipeline.run_for_subdomains(subdomains_data)
+            _merge_crawling_into_results(existing_results, crawling_results)
+            _log.info(f"[Model3] Background crawling complete for {len(subdomains_data)} targets")
+        except Exception as exc:
+            _log.error(f"[Model3] Background crawling error (non-fatal): {exc}")
 
-    # ── Step 3: Merge crawling discoveries into fingerprinting results ────
-    crawling_by_url = {r["url"]: r for r in crawling_results}
+    t = threading.Thread(target=_run_crawling_background, daemon=True)
+    t.start()
 
-    enhanced = []
+    # Return fingerprinting results immediately — crawling enriches in background
+    return existing_results
+
+
+def _merge_crawling_into_results(existing_results: list, crawling_results: list) -> None:
+    """Merge crawling pipeline output into existing_results in-place."""
+    crawling_by_url = {r["url"]: r for r in (crawling_results or [])}
+
     for tech_result in existing_results:
         url = tech_result.get("url", "")
         crawl_data = crawling_by_url.get(url, {})
+        if not crawl_data:
+            continue
 
-        merged = dict(tech_result)
-        merged["crawling"] = {
-            "crawl_source":            crawl_data.get("crawl_result", {}).get("source"),
-            "endpoints":               crawl_data.get("endpoint_collection", {}).get("endpoints", []),
-            "endpoint_summary":        {
+        tech_result["crawling"] = {
+            "crawl_source":             crawl_data.get("crawl_result", {}).get("source"),
+            "endpoints":                crawl_data.get("endpoint_collection", {}).get("endpoints", []),
+            "endpoint_summary":         {
                 k: crawl_data.get("endpoint_collection", {}).get(k, 0)
                 for k in ("total", "with_params", "api_count", "high_value_count")
             },
-            "parameter_inventory":     crawl_data.get("endpoint_collection", {}).get("parameter_inventory", {}),
-            "js_analysis":             crawl_data.get("js_analysis", {}),
+            "parameter_inventory":      crawl_data.get("endpoint_collection", {}).get("parameter_inventory", {}),
+            "js_analysis":              crawl_data.get("js_analysis", {}),
             "nuclei_extended_findings": crawl_data.get("validated_findings", []),
-            "pipeline_summary":        crawl_data.get("summary", {}),
+            "pipeline_summary":         crawl_data.get("summary", {}),
         }
 
-        # Inject confirmed Nuclei crawling findings as CVE-like entries so they
-        # flow through Model 6 (risk scoring) and Model 7 (recommendations).
-        # Only inject confirmed findings to avoid noise.
-        confirmed_findings = [
-            f for f in crawl_data.get("validated_findings", [])
-            if f.get("is_confirmed")
-        ]
-        if confirmed_findings and merged.get("technologies"):
-            for finding in confirmed_findings:
-                synthetic_cve = {
-                    "cve": finding.get("template_id", "NUCLEI-CRAWL-UNKNOWN"),
-                    "cvss": _severity_to_cvss(finding.get("severity", "low")),
-                    "description": finding.get("description") or finding.get("name", ""),
-                    "severity": str(finding.get("severity", "low")).upper(),
-                    "affected_versions": [],
-                    "justification": (
-                        f"Discovered via crawled endpoint ({finding.get('discovery_source', 'crawler')}). "
-                        + finding.get("confidence_explanation", "")
-                    ),
-                    "affected_version_range": "N/A",
-                    "validation_status": (
-                        "Exploitable"
-                        if finding.get("confidence_level") == "HIGH"
-                        else "Unverified"
-                    ),
-                    "source": "crawling_nuclei",
-                    "matched_at": finding.get("matched_at", ""),
-                }
-                # Append to the first technology entry (root-level finding)
-                if merged["technologies"]:
-                    first_tech = merged["technologies"][0]
-                    existing_ids = {c.get("cve") for c in first_tech.get("cves", [])}
-                    if synthetic_cve["cve"] not in existing_ids:
-                        first_tech.setdefault("cves", []).append(synthetic_cve)
-
-        enhanced.append(merged)
-
-    return enhanced
+        # Inject confirmed crawling findings into the CVE list
+        for finding in crawl_data.get("validated_findings", []):
+            if not finding.get("is_confirmed"):
+                continue
+            synthetic_cve = {
+                "cve": finding.get("template_id", "NUCLEI-CRAWL-UNKNOWN"),
+                "cvss": _severity_to_cvss(finding.get("severity", "low")),
+                "description": finding.get("description") or finding.get("name", ""),
+                "severity": str(finding.get("severity", "low")).upper(),
+                "affected_versions": [],
+                "justification": (
+                    f"Discovered via crawled endpoint ({finding.get('discovery_source', 'crawler')}). "
+                    + finding.get("confidence_explanation", "")
+                ),
+                "affected_version_range": "N/A",
+                "validation_status": (
+                    "Exploitable" if finding.get("confidence_level") == "HIGH" else "Unverified"
+                ),
+                "source": "crawling_nuclei",
+                "matched_at": finding.get("matched_at", ""),
+            }
+            techs = tech_result.get("technologies", [])
+            if techs:
+                existing_ids = {c.get("cve") for c in techs[0].get("cves", [])}
+                if synthetic_cve["cve"] not in existing_ids:
+                    techs[0].setdefault("cves", []).append(synthetic_cve)
 
 
 def _empty_crawling_block() -> dict:

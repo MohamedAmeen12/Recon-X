@@ -7,14 +7,81 @@ Output: Discovered subdomains, clustering analysis, and liveness status.
 NOTE: This model is strictly Rule-Based (Discovery) and Unsupervised (Clustering).
 It does NOT perform supervised classification or risk scoring.
 """
-import numpy as np
-import socket
-import requests
-import time
+import json
 import os
+import shutil
+import socket
+import subprocess
+import time
+
+import numpy as np
+import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
 from utils.sublist3r_tool import run_sublist3r, get_sublist3r_result
 from models.model2 import scan_ports_parallel
+
+_SUBFINDER = os.path.expanduser(r"~\go\bin\subfinder.exe")
+_AMASS = os.path.expanduser(r"~\go\bin\amass.exe")
+
+
+def run_subfinder(domain: str, timeout: int = 90) -> list:
+    """
+    Run subfinder for passive subdomain enumeration.
+    Returns list of discovered subdomains, or [] if subfinder is not installed.
+    """
+    bin_ = _SUBFINDER if os.path.exists(_SUBFINDER) else shutil.which("subfinder")
+    if not bin_:
+        print("[Model1] subfinder not found — skipping")
+        return []
+    try:
+        result = subprocess.run(
+            [bin_, "-d", domain, "-silent", "-json"],
+            capture_output=True, text=True, timeout=timeout,
+        )
+        subs = []
+        for line in result.stdout.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                data = json.loads(line)
+                host = data.get("host") or data.get("name") or ""
+                if host:
+                    subs.append(host)
+            except json.JSONDecodeError:
+                subs.append(line)
+        print(f"[Model1] subfinder found {len(subs)} subdomains for {domain}")
+        return subs
+    except subprocess.TimeoutExpired:
+        print(f"[Model1] subfinder timed out for {domain}")
+    except Exception as exc:
+        print(f"[Model1] subfinder error: {exc}")
+    return []
+
+
+def run_amass(domain: str, timeout: int = 120) -> list:
+    """
+    Run amass (passive mode) for subdomain enumeration.
+    Returns list of discovered subdomains, or [] if amass is not installed.
+    """
+    bin_ = _AMASS if os.path.exists(_AMASS) else shutil.which("amass")
+    if not bin_:
+        print("[Model1] amass not found — skipping")
+        return []
+    try:
+        result = subprocess.run(
+            [bin_, "enum", "-passive", "-d", domain, "-silent"],
+            capture_output=True, text=True, timeout=timeout,
+        )
+        subs = [ln.strip() for ln in result.stdout.splitlines() if ln.strip()]
+        print(f"[Model1] amass found {len(subs)} subdomains for {domain}")
+        return subs
+    except subprocess.TimeoutExpired:
+        print(f"[Model1] amass timed out for {domain}")
+    except Exception as exc:
+        print(f"[Model1] amass error: {exc}")
+    return []
 
 
 def _resolve_single_subdomain(subdomain):
@@ -156,22 +223,40 @@ def run_subdomain_discovery(domain):
     if is_ip or is_lab_mode_enabled():
         subdomains = [domain]
     else:
-        # Step 1: Start sublist3r in background (non-blocking - returns immediately!)
-        sublist3r_future = run_sublist3r(domain)
-        
-        # Get the result when ready (this will wait, but sublist3r is already running)
-        sublist3r_result = get_sublist3r_result(sublist3r_future, timeout=300)
-        
-        if sublist3r_result.get("status") == "success":
-            subdomains = sublist3r_result.get("subdomains", [])
-        else:
-            print(f"Sublist3r status: {sublist3r_result.get('status')}")
-            if sublist3r_result.get("status") == "error":
-                print(f"Error: {sublist3r_result.get('error')}")
-            subdomains = []
+        # ── Run all three engines in parallel ──────────────────────────────
+        # subfinder and amass are the primary tools; sublist3r is the fallback.
+        with ThreadPoolExecutor(max_workers=3) as disc_exec:
+            sf_future   = disc_exec.submit(run_subfinder, domain)
+            am_future   = disc_exec.submit(run_amass, domain)
+            # sublist3r uses its own threading internally — start it last
+            sl_future   = run_sublist3r(domain)          # non-blocking background task
+
+        subfinder_subs = sf_future.result()
+        amass_subs     = am_future.result()
+
+        sl_result = get_sublist3r_result(sl_future, timeout=300)
+        sublist3r_subs = (
+            sl_result.get("subdomains", [])
+            if sl_result.get("status") == "success"
+            else []
+        )
+        if sl_result.get("status") == "error":
+            print(f"[Model1] sublist3r error: {sl_result.get('error')}")
+
+        # Merge and deduplicate — preserve insertion order (subfinder first as primary)
+        seen: set = set()
+        subdomains: list = []
+        for sub in subfinder_subs + amass_subs + sublist3r_subs:
+            if sub and sub not in seen:
+                seen.add(sub)
+                subdomains.append(sub)
+
+        print(f"[Model1] Total unique subdomains after merge: {len(subdomains)} "
+              f"(subfinder={len(subfinder_subs)}, amass={len(amass_subs)}, "
+              f"sublist3r={len(sublist3r_subs)})")
 
         # ── ROOT DOMAIN INJECTION ──
-        if domain not in subdomains:
+        if domain not in seen:
             subdomains.insert(0, domain)
         # ───────────────────────────
 

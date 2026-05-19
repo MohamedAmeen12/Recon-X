@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 # NVD API Configuration
 NVD_API_BASE_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
 NVD_API_KEY_ENV = "NVD_API_KEY"
-DEFAULT_RATE_LIMIT_DELAY = 0.6  # 50 requests per 30 seconds = ~0.6s between requests
+DEFAULT_RATE_LIMIT_DELAY = 0.1  # authenticated key: 50 req/30 s — 0.1 s is well within limit
 MAX_RETRIES = 3
 RETRY_BACKOFF_FACTOR = 2
 

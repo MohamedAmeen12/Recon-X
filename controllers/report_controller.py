@@ -43,7 +43,12 @@ def enrich_report_data(record):
     IMPORTANT: This function is called on every report page load — keep it FAST.
     Never run Model 5 (Exploit-DB calls) or Model 6 (XGBoost inference) here;
     those are computed once during the scan and stored in the report document.
+
+    Performance: MongoDB queries for raw_docs, technologies, and recommendations
+    run concurrently using ThreadPoolExecutor so total latency ≈ max(each query)
+    instead of sum(each query).
     """
+    from concurrent.futures import ThreadPoolExecutor, as_completed as _asc
     domain = record.get("domain")
     result = record.setdefault("result", {})
     report_id = str(record["_id"])
@@ -65,81 +70,91 @@ def enrich_report_data(record):
         except Exception as e:
             print(f"[Enrich] Dynamic report generation error: {e}")
 
-    # ── 0. Hydrate raw_docs from subdomains_collection if missing ────────────
-    if not result.get("raw_docs"):
-        try:
-            raw_docs_db = list(db.subdomains_collection.find(
-                {"domain": domain}, {"_id": 0}
-            ).sort("scanned_at", -1).limit(200))
-            if raw_docs_db:
-                result["raw_docs"] = raw_docs_db
-                result.setdefault("total_candidates", len(raw_docs_db))
-                result.setdefault("resolved",
-                    sum(1 for s in raw_docs_db if s.get("ip") and s["ip"] != "Unresolved"))
-                result.setdefault("live_http",
-                    sum(1 for s in raw_docs_db if s.get("live_http")))
-        except Exception as e:
-            print(f"[Enrich] raw_docs hydration error: {e}")
+    # ── Run all three DB hydration queries concurrently ──────────────────────
+    def _fetch_raw_docs():
+        if result.get("raw_docs"):
+            return None
+        return list(db.subdomains_collection.find(
+            {"domain": domain}, {"_id": 0}
+        ).sort("scanned_at", -1).limit(100))   # limit 100 (was 200) for faster transfer
 
-    # ── 1. Hydrate technology_fingerprints from technologies_collection ───────
-    if not result.get("technology_fingerprints"):
-        try:
-            technologies = list(db.technologies_collection.find(
-                {"domain": domain}, {"_id": 0}
-            ).sort("scanned_at", -1))
+    def _fetch_technologies():
+        if result.get("technology_fingerprints"):
+            return None
+        return list(db.technologies_collection.find(
+            {"domain": domain}, {"_id": 0}
+        ).sort("scanned_at", -1))
 
-            tech_by_url = {}
-            for tech in technologies:
-                url = tech.get("url") or f"http://{tech.get('subdomain', '')}"
-                tech_by_url.setdefault(url, {"url": url, "technologies": []})
+    def _fetch_recommendations():
+        if result.get("recommendations"):
+            return None
+        return list(db.recommendations_collection.find(
+            {"report_id": report_id}, {"_id": 0}
+        ))
 
-                # Deduplicate
-                already = any(
-                    t["technology"] == tech.get("technology") and
-                    t["version"] == tech.get("version")
-                    for t in tech_by_url[url]["technologies"]
+    with ThreadPoolExecutor(max_workers=3) as _pool:
+        _rf = _pool.submit(_fetch_raw_docs)
+        _tf = _pool.submit(_fetch_technologies)
+        _rr = _pool.submit(_fetch_recommendations)
+        raw_docs_db      = _rf.result()
+        technologies_db  = _tf.result()
+        recommendations  = _rr.result()
+
+    # ── 0. Apply raw_docs ─────────────────────────────────────────────────────
+    if raw_docs_db is not None:
+        result["raw_docs"] = raw_docs_db
+        result.setdefault("total_candidates", len(raw_docs_db))
+        result.setdefault("resolved",
+            sum(1 for s in raw_docs_db if s.get("ip") and s["ip"] != "Unresolved"))
+        result.setdefault("live_http",
+            sum(1 for s in raw_docs_db if s.get("live_http")))
+
+    # ── 1. Apply technology fingerprints (O(1) dedup via set) ────────────────
+    if technologies_db is not None:
+        tech_by_url: dict = {}
+        # Use a set for O(1) duplicate check instead of the previous O(N) any() scan
+        seen_keys: dict = {}   # url → set of (technology, version) tuples
+
+        for tech in technologies_db:
+            url = tech.get("url") or f"http://{tech.get('subdomain', '')}"
+            tech_by_url.setdefault(url, {"url": url, "technologies": []})
+            seen_keys.setdefault(url, set())
+
+            dedup_key = (tech.get("technology"), tech.get("version"))
+            if dedup_key in seen_keys[url]:
+                continue
+            seen_keys[url].add(dedup_key)
+
+            tech_cves = tech.get("cves") or []
+            if not tech_cves and tech.get("max_cvss", 0) > 0:
+                cvss_val = float(tech["max_cvss"])
+                severity = (
+                    "CRITICAL" if cvss_val >= 9 else
+                    "HIGH"     if cvss_val >= 7 else
+                    "MEDIUM"   if cvss_val >= 4 else "LOW"
                 )
-                if already:
-                    continue
+                tech_cves = [{
+                    "cve": "CVE-PENDING", "cvss": cvss_val, "severity": severity,
+                    "description": (
+                        f"Known vulnerability in {tech.get('technology', '')} "
+                        f"{tech.get('version', '')} (max CVSS {cvss_val})"
+                    ),
+                }]
 
-                # Use CVEs stored directly in the tech doc (new schema from model3 fix).
-                tech_cves = tech.get("cves") or []
+            tech_by_url[url]["technologies"].append({
+                "technology":           tech.get("technology"),
+                "version":              tech.get("version"),
+                "category":             tech.get("category", "Unknown"),
+                "cves":                 tech_cves,
+                "vulnerability_status": tech.get("vulnerability_status", "unknown"),
+                "confidence":           tech.get("confidence", 0.0),
+                "max_cvss":             tech.get("max_cvss", 0.0),
+                "source":               tech.get("source", ""),
+            })
 
-                # Legacy fallback: synthesise a CVE stub from max_cvss so the
-                # vuln table has something to show for old reports.
-                if not tech_cves and tech.get("max_cvss", 0) > 0:
-                    cvss_val = float(tech["max_cvss"])
-                    severity = (
-                        "CRITICAL" if cvss_val >= 9 else
-                        "HIGH"     if cvss_val >= 7 else
-                        "MEDIUM"   if cvss_val >= 4 else "LOW"
-                    )
-                    tech_cves = [{
-                        "cve": "CVE-PENDING",
-                        "cvss": cvss_val,
-                        "severity": severity,
-                        "description": (
-                            f"Known vulnerability in {tech.get('technology', '')} "
-                            f"{tech.get('version', '')} (max CVSS {cvss_val})"
-                        )
-                    }]
+        result["technology_fingerprints"] = list(tech_by_url.values())
 
-                tech_by_url[url]["technologies"].append({
-                    "technology":           tech.get("technology"),
-                    "version":              tech.get("version"),
-                    "category":             tech.get("category", "Unknown"),
-                    "cves":                 tech_cves,
-                    "vulnerability_status": tech.get("vulnerability_status", "unknown"),
-                    "confidence":           tech.get("confidence", 0.0),
-                    "max_cvss":             tech.get("max_cvss", 0.0),
-                    "source":               tech.get("source", ""),
-                })
-
-            result["technology_fingerprints"] = list(tech_by_url.values())
-        except Exception as e:
-            print(f"[Enrich] Tech hydration error: {e}")
-
-    # ── 2. Add statistics to model5 if already present (zero-cost) ──────────
+    # ── 2. Model 5 statistics (zero-cost, in-memory) ──────────────────────────
     try:
         if result.get("model5") and "statistics" not in result["model5"]:
             result["model5"]["statistics"] = build_strategy_statistics(
@@ -148,16 +163,9 @@ def enrich_report_data(record):
     except Exception as e:
         print(f"[Enrich] Model 5 statistics error: {e}")
 
-    # ── 3. Fetch recommendations from DB if already generated ───────────────
-    if not result.get("recommendations"):
-        try:
-            recs = list(db.recommendations_collection.find(
-                {"report_id": str(record["_id"])}, {"_id": 0}
-            ))
-            if recs:
-                result["recommendations"] = recs
-        except Exception as e:
-            logger.warning(f"[Enrich] Recommendations fetch error for {record.get('_id')}: {e}")
+    # ── 3. Apply recommendations ──────────────────────────────────────────────
+    if recommendations:
+        result["recommendations"] = recommendations
 
     return record
 

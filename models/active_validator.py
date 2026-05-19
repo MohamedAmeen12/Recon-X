@@ -53,18 +53,24 @@ def run_nuclei_validation(cve_id: str, target_url: str) -> bool:
     Runs Nuclei against the target URL for the specific CVE.
     Returns True if the vulnerability is exploitable, False otherwise.
     """
+    import os, shutil
+    _nuclei = os.path.expanduser(r"~\go\bin\nuclei.exe")
+    nuclei_bin = _nuclei if os.path.exists(_nuclei) else (shutil.which("nuclei") or "nuclei")
+
     command = [
-        "nuclei",
+        nuclei_bin,
         "-target", target_url,
         "-tags", cve_id.lower(),
-        "-json-export", "-", # Output JSON to stdout
-        "-silent", # Only show findings
+        "-json-export", "-",
+        "-silent",
         "-no-interact",
-        "-t", "cves" # Focus on CVE templates to speed up and avoid intrusive attacks
+        "-t", "cves",
+        "-timeout", "5",    # per-request timeout (was unbounded)
+        "-rl",     "20",    # rate limit requests/s
     ]
-    
+
     try:
-        result = subprocess.run(command, capture_output=True, text=True, timeout=60)
+        result = subprocess.run(command, capture_output=True, text=True, timeout=15)  # was 60 s
         
         if result.returncode != 0 and not result.stdout:
             logger.warning(f"[Active Validator] Nuclei command failed: {result.stderr}")
