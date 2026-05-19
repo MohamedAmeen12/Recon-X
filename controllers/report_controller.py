@@ -53,22 +53,26 @@ def enrich_report_data(record):
     result = record.setdefault("result", {})
     report_id = str(record["_id"])
 
-    # ── Export Fallback: Generate exports dynamically if they do not exist ──
+    # ── Export Fallback: Regenerate exports in background if missing ────────
+    # Running the export pipeline synchronously here would block the entire
+    # request for minutes, causing the "infinite spinner" on the report page.
+    # Instead we fire it as a daemon thread and return immediately.
     if "report_files" not in result:
-        try:
-            from pipeline.pipeline_controller import run_export_pipeline
-            export_res = run_export_pipeline(result, domain, report_id)
-            db.reports_collection.update_one(
-                {"_id": record["_id"]},
-                {"$set": {
-                    "result.report_files": export_res["report_files"],
-                    "result.export_status": export_res["export_status"]
-                }}
-            )
-            result["report_files"] = export_res["report_files"]
-            result["export_status"] = export_res["export_status"]
-        except Exception as e:
-            print(f"[Enrich] Dynamic report generation error: {e}")
+        import threading as _t
+        def _regen_exports():
+            try:
+                from pipeline.pipeline_controller import run_export_pipeline
+                export_res = run_export_pipeline(result, domain, report_id)
+                db.reports_collection.update_one(
+                    {"_id": record["_id"]},
+                    {"$set": {
+                        "result.report_files": export_res["report_files"],
+                        "result.export_status": export_res["export_status"],
+                    }},
+                )
+            except Exception as _e:
+                print(f"[Enrich] Background export error: {_e}")
+        _t.Thread(target=_regen_exports, daemon=True).start()
 
     # ── Run all three DB hydration queries concurrently ──────────────────────
     def _fetch_raw_docs():

@@ -57,7 +57,29 @@ document.addEventListener("DOMContentLoaded", async () => {
       fetchUrl = `/get_report?domain=${encodeURIComponent(domain)}`;
     }
 
-    const resp = await fetch(fetchUrl);
+    // 60-second timeout — prevents infinite spinner if server is slow or stuck
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
+
+    let resp;
+    try {
+      resp = await fetch(fetchUrl, { signal: controller.signal });
+    } catch (fetchErr) {
+      clearTimeout(timeoutId);
+      if (fetchErr.name === "AbortError") {
+        reportContent.innerHTML = `
+          <div class="glass-card p-8 flex flex-col justify-center items-center text-center">
+            <i class="ph ph-clock text-4xl text-orange-500 mb-4"></i>
+            <h3 class="text-xl font-bold mb-2">Report Taking Too Long</h3>
+            <p class="text-gray-500 mb-4">The server is still processing your scan. Please wait a moment then try opening the report from <a href="/history" class="text-emerald-500 underline">Scan History</a>.</p>
+            <button onclick="window.location.reload()" class="px-4 py-2 bg-emerald-500 text-white rounded-lg font-medium">Retry</button>
+          </div>`;
+        return;
+      }
+      throw fetchErr;
+    }
+    clearTimeout(timeoutId);
+
     if (resp.status === 401 || resp.status === 403) {
       reportContent.innerHTML = `
         <div class="glass-card p-8 flex flex-col justify-center items-center text-center">
@@ -67,7 +89,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         </div>`;
       return;
     }
-    if (!resp.ok) throw new Error("Failed to load report");
+    if (!resp.ok) throw new Error(`Failed to load report (HTTP ${resp.status})`);
 
     const data = await resp.json();
 
