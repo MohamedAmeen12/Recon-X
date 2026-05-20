@@ -99,7 +99,7 @@ def add_domain():
 
 @scan_bp.route("/scan_domain", methods=["POST"])
 @login_required
-@limiter.limit("20 per hour") if limiter else lambda f: f
+@limiter.limit("200 per hour") if limiter else lambda f: f
 def scan_domain():
     try:
 
