@@ -99,8 +99,8 @@ def enforce_strict_auth():
         return None
 
     # ── 3. CLI Lab Mode Bypass ──
-    from utils.domain_validator import is_lab_mode_enabled
-    if is_lab_mode_enabled() and request.headers.get("X-CLI-Bypass") == "reconx_cli_mode":
+    from middlewares.auth_middleware import _cli_bypass_enabled
+    if _cli_bypass_enabled() and request.headers.get("X-CLI-Bypass") == "reconx_cli_mode":
         # Create a dummy admin session for the CLI
         session["user_id"] = "cli_dummy_user_id"
         session["role"] = "admin"

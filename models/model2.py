@@ -94,10 +94,11 @@ def _find_masscan() -> Optional[str]:
     return shutil.which("masscan")
 
 
-def run_masscan(ip: str, rate: int = 1000, timeout: int = 120) -> List[int]:
+def run_masscan(ip: str, rate: int = 200, timeout: int = 30, port_list: str = "1-65535") -> List[int]:
     """
-    Run masscan over all 65535 ports on *ip* and return list of open port numbers.
-    Requires admin/root privileges. Returns [] gracefully if masscan is unavailable.
+    Run masscan on *ip* and return list of open port numbers.
+    Defaults to scanning DEFAULT_PORTS_TO_SCAN at rate=200 (reliable without admin).
+    Returns [] gracefully if masscan is unavailable or times out.
     """
     bin_ = _find_masscan()
     if not bin_:
@@ -109,7 +110,7 @@ def run_masscan(ip: str, rate: int = 1000, timeout: int = 120) -> List[int]:
             output_file = fh.name
 
         subprocess.run(
-            [bin_, ip, "-p1-65535", f"--rate={rate}", "-oJ", output_file],
+            [bin_, ip, f"-p{port_list}", f"--rate={rate}", "-oJ", output_file],
             capture_output=True, text=True, timeout=timeout,
         )
 
@@ -344,18 +345,23 @@ def _socket_scan(ip: str, ports: List[int]) -> List[dict]:
 
 def scan_ports(ip, ports=DEFAULT_PORTS_TO_SCAN):
     """
-    Tiered port scanning:
-      1. masscan  — fast full-range sweep (finds open port numbers)
-      2. nmap     — service/version detection on the ports masscan found
-      3. socket   — concurrent TCP connect + banner grab (no binary needed)
+    Tiered port scanning — every tier is attempted until ports are found:
+      1. masscan  — full 65535-port sweep (fast, needs admin)
+      2. nmap     — service/version detection; standalone if masscan found nothing
+      3. socket   — concurrent TCP connect + banner grab (pure Python, always works)
 
-    Returns list of dicts: [{port, state, product, version, extrainfo, protocol}]
+    IMPORTANT: tiers 2 and 3 run whenever masscan is absent OR returns nothing.
+    Previously masscan finding nothing would silently skip the fallbacks.
     """
     open_ports = []
 
     # ── Tier 1: masscan ───────────────────────────────────────────────────
+    # Rate=200 is reliable without admin; rate=1000 drops SYN-ACKs at high speeds.
+    # Scan only DEFAULT_PORTS_TO_SCAN (80 ports) instead of all 65535 — masscan's
+    # value here is parallelism over the target port list, not full-range discovery.
     if _find_masscan():
-        masscan_ports = run_masscan(ip)
+        port_range = ",".join(str(p) for p in sorted(set(ports)))
+        masscan_ports = run_masscan(ip, rate=200, timeout=30, port_list=port_range)
         if masscan_ports:
             port_list = ",".join(str(p) for p in sorted(set(masscan_ports)))
             nmap_results = _nmap_service_scan(ip, port_list)
@@ -367,16 +373,20 @@ def scan_ports(ip, ports=DEFAULT_PORTS_TO_SCAN):
                      "version": "", "extrainfo": "", "protocol": "tcp"}
                     for p in masscan_ports
                 ]
-    else:
-        # ── Tier 2: nmap standalone ───────────────────────────────────────
+        else:
+            print(f"[Model2] masscan found no open ports on {ip} — falling back to nmap/socket")
+
+    # ── Tier 2: nmap (runs if masscan unavailable OR found nothing) ───────
+    if not open_ports:
         port_list = ",".join(str(p) for p in ports)
         nmap_results = _nmap_service_scan(ip, port_list)
         if nmap_results:
             open_ports = nmap_results
-        else:
-            # ── Tier 3: concurrent socket scan with banner grabbing ────────
-            print(f"[Model2] No masscan/nmap — using concurrent socket scan on {ip}")
-            open_ports = _socket_scan(ip, ports)
+
+    # ── Tier 3: socket scan (runs if both masscan and nmap found nothing) ─
+    if not open_ports:
+        print(f"[Model2] Falling back to concurrent socket scan on {ip}")
+        open_ports = _socket_scan(ip, ports)
 
     # ── AI Port Service Classification ────────────────────────────────────
     final_results = []

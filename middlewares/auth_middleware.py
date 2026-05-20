@@ -1,15 +1,21 @@
+import os
 from functools import wraps
 from flask import session, redirect, url_for, request, jsonify
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+def _cli_bypass_enabled() -> bool:
+    """CLI bypass is enabled when DEV_MODE=true OR CLI_BYPASS=true."""
+    dev_mode = os.getenv("DEV_MODE", "").strip().lower() == "true"
+    cli_bypass = os.getenv("CLI_BYPASS", "").strip().lower() == "true"
+    return dev_mode or cli_bypass
+
 def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        from utils.domain_validator import is_lab_mode_enabled
-        # Support CLI bypass for local lab testing
-        if is_lab_mode_enabled() and request.headers.get("X-CLI-Bypass") == "reconx_cli_mode":
+        # Support CLI bypass for local lab testing (DEV_MODE or CLI_BYPASS env var)
+        if _cli_bypass_enabled() and request.headers.get("X-CLI-Bypass") == "reconx_cli_mode":
             session["user_id"] = "cli_dummy_user_id"
             session["role"] = "admin"
             session["username"] = "admin"

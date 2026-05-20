@@ -1,0 +1,184 @@
+{
+  "target": "vulnweb.com",
+  "generated_at": "2026-05-20T01:15:30.231987Z",
+  "tool": "ReconX",
+  "engine_version": "2.0.0",
+  "scan_id": "6a0d0b2d5983c3daae90a8cc",
+  "summary": {
+    "total_findings": 10,
+    "web_exploit_count": 0,
+    "technology_cve_count": 5,
+    "traffic_anomaly_count": 5,
+    "severity_distribution": {
+      "critical": 3,
+      "high": 2,
+      "medium": 0,
+      "low": 0
+    }
+  },
+  "web_exploit_findings": [],
+  "technology_cve_findings": [
+    {
+      "finding_type": "technology_cve",
+      "title": "Vulnerable Service: PHP (CVE-2019-6977)",
+      "severity": "High",
+      "target": "vulnweb.com",
+      "host": "rest.vulnweb.com",
+      "service_name": "PHP",
+      "technology_stack": "PHP",
+      "version": "7.1.26",
+      "cve_id": "CVE-2019-6977",
+      "cvss_score": 8.8,
+      "cwe": "CWE-787",
+      "description": "gdImageColorMatch in gd_color_match.c in the GD Graphics Library (aka LibGD) 2.2.5, as used in the imagecolormatch function in PHP before 5.6.40, 7.x before 7.1.26, 7.2.x before 7.2.14, and 7.3.x before 7.3.1, has a heap-based buffer overflow. This can be exploited by an attacker who is able to trigger imagecolormatch calls with crafted image data.",
+      "impact": "Exposure to known public vulnerabilities on this technology stack.",
+      "remediation": "",
+      "references": [
+        "https://nvd.nist.gov/vuln/detail/CVE-2019-6977"
+      ],
+      "scan_id": "6a0d0b2d5983c3daae90a8cc"
+    },
+    {
+      "finding_type": "technology_cve",
+      "title": "Vulnerable Service: PHP (CVE-2019-9020)",
+      "severity": "Critical",
+      "target": "vulnweb.com",
+      "host": "rest.vulnweb.com",
+      "service_name": "PHP",
+      "technology_stack": "PHP",
+      "version": "7.1.26",
+      "cve_id": "CVE-2019-9020",
+      "cvss_score": 9.8,
+      "cwe": "CWE-125, CWE-416",
+      "description": "An issue was discovered in PHP before 5.6.40, 7.x before 7.1.26, 7.2.x before 7.2.14, and 7.3.x before 7.3.1. Invalid input to the function xmlrpc_decode() can lead to an invalid memory access (heap out of bounds read or read after free). This is related to xml_elem_parse_buf in ext/xmlrpc/libxmlrpc/xml_element.c.",
+      "impact": "Exposure to known public vulnerabilities on this technology stack.",
+      "remediation": "",
+      "references": [
+        "https://nvd.nist.gov/vuln/detail/CVE-2019-9020"
+      ],
+      "scan_id": "6a0d0b2d5983c3daae90a8cc"
+    },
+    {
+      "finding_type": "technology_cve",
+      "title": "Vulnerable Service: PHP (CVE-2019-9021)",
+      "severity": "Critical",
+      "target": "vulnweb.com",
+      "host": "rest.vulnweb.com",
+      "service_name": "PHP",
+      "technology_stack": "PHP",
+      "version": "7.1.26",
+      "cve_id": "CVE-2019-9021",
+      "cvss_score": 9.8,
+      "cwe": "CWE-125",
+      "description": "An issue was discovered in PHP before 5.6.40, 7.x before 7.1.26, 7.2.x before 7.2.14, and 7.3.x before 7.3.1. A heap-based buffer over-read in PHAR reading functions in the PHAR extension may allow an attacker to read allocated or unallocated memory past the actual data when trying to parse the file name, a different vulnerability than CVE-2018-20783. This is related to phar_detect_phar_fname_ext in ext/phar/phar.c.",
+      "impact": "Exposure to known public vulnerabilities on this technology stack.",
+      "remediation": "",
+      "references": [
+        "https://nvd.nist.gov/vuln/detail/CVE-2019-9021"
+      ],
+      "scan_id": "6a0d0b2d5983c3daae90a8cc"
+    },
+    {
+      "finding_type": "technology_cve",
+      "title": "Vulnerable Service: PHP (CVE-2019-9022)",
+      "severity": "High",
+      "target": "vulnweb.com",
+      "host": "rest.vulnweb.com",
+      "service_name": "PHP",
+      "technology_stack": "PHP",
+      "version": "7.1.26",
+      "cve_id": "CVE-2019-9022",
+      "cvss_score": 7.5,
+      "cwe": "CWE-125",
+      "description": "An issue was discovered in PHP 7.x before 7.1.26, 7.2.x before 7.2.14, and 7.3.x before 7.3.2. dns_get_record misparses a DNS response, which can allow a hostile DNS server to cause PHP to misuse memcpy, leading to read operations going past the buffer allocated for DNS data. This affects php_parserr in ext/standard/dns.c for DNS_CAA and DNS_ANY queries.",
+      "impact": "Exposure to known public vulnerabilities on this technology stack.",
+      "remediation": "",
+      "references": [
+        "https://nvd.nist.gov/vuln/detail/CVE-2019-9022"
+      ],
+      "scan_id": "6a0d0b2d5983c3daae90a8cc"
+    },
+    {
+      "finding_type": "technology_cve",
+      "title": "Vulnerable Service: PHP (CVE-2019-9023)",
+      "severity": "Critical",
+      "target": "vulnweb.com",
+      "host": "rest.vulnweb.com",
+      "service_name": "PHP",
+      "technology_stack": "PHP",
+      "version": "7.1.26",
+      "cve_id": "CVE-2019-9023",
+      "cvss_score": 9.8,
+      "cwe": "CWE-125",
+      "description": "An issue was discovered in PHP before 5.6.40, 7.x before 7.1.26, 7.2.x before 7.2.14, and 7.3.x before 7.3.1. A number of heap-based buffer over-read instances are present in mbstring regular expression functions when supplied with invalid multibyte data. These occur in ext/mbstring/oniguruma/regcomp.c, ext/mbstring/oniguruma/regexec.c, ext/mbstring/oniguruma/regparse.c, ext/mbstring/oniguruma/enc/unicode.c, and ext/mbstring/oniguruma/src/utf32_be.c when a multibyte regular expression pattern contains invalid multibyte sequences.",
+      "impact": "Exposure to known public vulnerabilities on this technology stack.",
+      "remediation": "",
+      "references": [
+        "https://nvd.nist.gov/vuln/detail/CVE-2019-9023"
+      ],
+      "scan_id": "6a0d0b2d5983c3daae90a8cc"
+    }
+  ],
+  "traffic_anomaly_findings": [
+    {
+      "finding_type": "traffic_anomaly",
+      "target": "vulnweb.com",
+      "host": "vulnweb.com",
+      "packet_count": 0,
+      "syn_count": 0,
+      "ip_count": 0,
+      "anomaly_score": -0.001,
+      "classification": "suspicious",
+      "explanation": "Rule-based signals detected: Missing Security Headers: 4/4 required headers absent (CSP, HSTS, X-Frame-Options, X-Content-Type-Options); Stability: High HTTP error rate (>= 50%). Isolation Forest decision score -0.001 is below the anomaly threshold (0.0). Traffic features: packet_count=0, tcp_syn_count=0, unique_ips=0.",
+      "scan_id": "6a0d0b2d5983c3daae90a8cc"
+    },
+    {
+      "finding_type": "traffic_anomaly",
+      "target": "vulnweb.com",
+      "host": "testaspnet.vulnweb.com",
+      "packet_count": 0,
+      "syn_count": 0,
+      "ip_count": 0,
+      "anomaly_score": 0.0332,
+      "classification": "suspicious",
+      "explanation": "Rule-based signals detected: Missing Security Headers: 4/4 required headers absent (CSP, HSTS, X-Frame-Options, X-Content-Type-Options); Insecure Configuration: Server version header exposed; Insecure Cookies: 1 cookie(s) missing Secure/HttpOnly flags. Isolation Forest decision score 0.0332 is within normal baseline (above 0.0 threshold).",
+      "scan_id": "6a0d0b2d5983c3daae90a8cc"
+    },
+    {
+      "finding_type": "traffic_anomaly",
+      "target": "vulnweb.com",
+      "host": "testhmtml5.vulnweb.com",
+      "packet_count": 0,
+      "syn_count": 0,
+      "ip_count": 0,
+      "anomaly_score": -0.001,
+      "classification": "suspicious",
+      "explanation": "Rule-based signals detected: Missing Security Headers: 4/4 required headers absent (CSP, HSTS, X-Frame-Options, X-Content-Type-Options); Stability: High HTTP error rate (>= 50%). Isolation Forest decision score -0.001 is below the anomaly threshold (0.0). Traffic features: packet_count=0, tcp_syn_count=0, unique_ips=0.",
+      "scan_id": "6a0d0b2d5983c3daae90a8cc"
+    },
+    {
+      "finding_type": "traffic_anomaly",
+      "target": "vulnweb.com",
+      "host": "www.vulnweb.com",
+      "packet_count": 0,
+      "syn_count": 0,
+      "ip_count": 0,
+      "anomaly_score": -0.001,
+      "classification": "suspicious",
+      "explanation": "Rule-based signals detected: Missing Security Headers: 4/4 required headers absent (CSP, HSTS, X-Frame-Options, X-Content-Type-Options); Stability: High HTTP error rate (>= 50%). Isolation Forest decision score -0.001 is below the anomaly threshold (0.0). Traffic features: packet_count=0, tcp_syn_count=0, unique_ips=0.",
+      "scan_id": "6a0d0b2d5983c3daae90a8cc"
+    },
+    {
+      "finding_type": "traffic_anomaly",
+      "target": "vulnweb.com",
+      "host": "www.test.php.vulnweb.com",
+      "packet_count": 0,
+      "syn_count": 0,
+      "ip_count": 0,
+      "anomaly_score": -0.001,
+      "classification": "suspicious",
+      "explanation": "Rule-based signals detected: Missing Security Headers: 4/4 required headers absent (CSP, HSTS, X-Frame-Options, X-Content-Type-Options); Stability: High HTTP error rate (>= 50%). Isolation Forest decision score -0.001 is below the anomaly threshold (0.0). Traffic features: packet_count=0, tcp_syn_count=0, unique_ips=0.",
+      "scan_id": "6a0d0b2d5983c3daae90a8cc"
+    }
+  ]
+}

@@ -64,13 +64,34 @@ def load_artifacts():
 
 from packaging.version import Version, InvalidVersion
 
+
+def _clean_version(v_str: str) -> str:
+    """
+    Strip Linux distro suffixes and extra annotations from version strings.
+    Examples:
+      '2.4.7 (Ubuntu)'  → '2.4.7'
+      '1.18.0-1~bionic' → '1.18.0'
+      '7.4.33-1+deb11u1'→ '7.4.33'
+      '8.2p1'           → '8.2' (packaging can't parse 'p1' suffix)
+    """
+    import re
+    v = v_str.split()[0]          # drop anything after the first space
+    v = v.split('+')[0]           # drop Debian revision (+deb11u1)
+    v = v.split('~')[0]           # drop Ubuntu epoch (~bionic)
+    v = v.split('-')[0]           # drop release candidate / patch level
+    # Remove any trailing non-numeric suffix (e.g., '8.2p1' → '8.2')
+    v = re.sub(r'[a-zA-Z]+\d*$', '', v)
+    return v.strip('.')
+
+
 def is_version_in_range(v_str: str, range_info: dict) -> tuple:
     """
     Programmatic comparison of detected version against NVD range definitions.
     Returns: (bool, status_label, range_str)
+    Cleans the version string before parsing to handle distro suffixes.
     """
     try:
-        v = Version(v_str)
+        v = Version(_clean_version(v_str))
         
         start_inc = range_info.get("start_inc")
         start_exc = range_info.get("start_exc")
@@ -117,9 +138,11 @@ def lookup_cve(tech_name, version=""):
     """
     Lookup CVE information using NVD API with process-level caching.
     Timeout reduced from 25 s to 10 s — NVD usually responds in < 2 s with an API key.
+    NVD lookups are NOT skipped in DEV_MODE — DEV_MODE only controls auth bypass.
+    Set SKIP_NVD_LOOKUPS=true to explicitly disable NVD (for offline testing).
     """
-    from utils.domain_validator import is_lab_mode_enabled
-    if is_lab_mode_enabled():
+    import os
+    if os.getenv("SKIP_NVD_LOOKUPS", "").strip().lower() == "true":
         return []
 
     cache_key = f"{tech_name.lower().strip()}:{version.lower().strip()}"

@@ -340,6 +340,22 @@ def _capture_with_scapy(
 # Public API — called by Model 4 (scan_controller.py)
 # ---------------------------------------------------------------------------
 
+def _probe_target(target_subdomain: str) -> None:
+    """
+    Send a few lightweight HTTP/HTTPS requests to the target to generate
+    traffic during the tcpdump capture window. Errors are silently swallowed.
+    """
+    import urllib.request
+    for scheme in ("http", "https"):
+        try:
+            url = f"{scheme}://{target_subdomain}/"
+            req = urllib.request.Request(url, headers={"User-Agent": "ReconX/1.0"})
+            with urllib.request.urlopen(req, timeout=3):
+                pass
+        except Exception:
+            pass
+
+
 def capture_traffic(target_subdomain: str, duration: int = 5) -> Dict:
     """
     Capture packets related to *target_subdomain* for *duration* seconds.
@@ -349,9 +365,14 @@ def capture_traffic(target_subdomain: str, duration: int = 5) -> Dict:
                     Avoids Scapy/Npcap threading conflicts in the main process.
       2. Scapy    — fallback when tcpdump binary is not present.
 
+    Traffic generation: a background thread sends HTTP probes to the target
+    while tcpdump is running so the capture window always contains real packets.
+
     Returns five numeric features for Model 4's Isolation Forest:
       { packet_count, avg_packet_size, tcp_syn_count, udp_count, unique_ips }
     """
+    import threading
+
     empty = {
         "packet_count": 0, "avg_packet_size": 0.0,
         "tcp_syn_count": 0, "udp_count": 0, "unique_ips": 0,
@@ -370,6 +391,12 @@ def capture_traffic(target_subdomain: str, duration: int = 5) -> Dict:
     if not iface:
         print("[TrafficCollector] No active network interface detected — skipping capture")
         return empty
+
+    # ── Start background HTTP probe (runs for the duration of the capture) ──
+    probe_thread = threading.Thread(
+        target=_probe_target, args=(target_subdomain,), daemon=True
+    )
+    probe_thread.start()
 
     # ── Engine 1: tcpdump ─────────────────────────────────────────────────
     tcpdump_bin = _find_tcpdump()
