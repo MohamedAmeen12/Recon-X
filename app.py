@@ -54,6 +54,12 @@ CORS(
 from utils.extensions import limiter
 limiter.init_app(app)
 
+# Return JSON for rate-limit errors so the frontend can display a real message
+from flask import jsonify as _jsonify
+@app.errorhandler(429)
+def ratelimit_handler(e):
+    return _jsonify(error=f"Rate limit exceeded: {e.description}. Wait a few minutes and try again."), 429
+
 
 # ====================================================
 # DATABASE INITIALIZATION

@@ -119,8 +119,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
             const data = await resp.json().catch(() => ({}));
             if (!resp.ok) {
-              showMessage(`Scan halted on ${target} due to API Rejection: ${data.error || data.message}`, true);
-              break; 
+              let errMsg = data.error || data.message;
+              if (!errMsg) {
+                if (resp.status === 429) errMsg = "Rate limit reached (too many scans this hour). Wait a few minutes and try again.";
+                else if (resp.status === 401) errMsg = "Session expired. Please log in again.";
+                else if (resp.status === 403) errMsg = "Scan target blocked by security policy.";
+                else errMsg = `Server returned HTTP ${resp.status}`;
+              }
+              showMessage(`Scan halted on ${target}: ${errMsg}`, true);
+              break;
             } else {
               didSucceed = true;
               if (data.report_id) lastReportId = data.report_id;
