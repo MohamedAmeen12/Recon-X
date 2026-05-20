@@ -1,20 +1,40 @@
+# ReconX — Python dependencies
+# Install with: pip install -r requirements.txt
+
+# ── Web Framework ────────────────────────────────────────
 flask
 flask-cors
+Flask-Limiter
+python-dotenv
+
+# ── Database ─────────────────────────────────────────────
 pymongo
+
+# ── Machine Learning ──────────────────────────────────────
 scikit-learn
 numpy
-requests
-sublist3r
-python-nmap
-whatweb
 pandas
+xgboost
+joblib
+scipy
+
+# ── Network / Scanning ───────────────────────────────────
+requests
 urllib3
 scapy
-beautifulsoup4
-pdfkit
-python-dotenv
+python-nmap
+sublist3r
+
+# ── AI / NLP ─────────────────────────────────────────────
 google-generativeai
-Flask-Limiter
-tensorflow
+
+# ── Graph Analysis ───────────────────────────────────────
 networkx
+
+# ── Reporting ────────────────────────────────────────────
+pdfkit
+beautifulsoup4
+
+# ── Utilities ────────────────────────────────────────────
+packaging
 neo4j
